@@ -80,8 +80,10 @@ test('production config has no placeholder KV namespace',()=>{
 
 test('expired sessions are removed and never treated as authenticated',()=>{
  const coordinator=readFileSync(new URL('../src/passkey-coordinator.js',import.meta.url),'utf8');
- assert.match(coordinator,/record&&record\.expires<=now/);
- assert.match(coordinator,/await store\.delete\(key\);return Response\.json\(\{valid:false\}\)/);
+ assert.match(coordinator,/record&&record\.expires<=Date\.now\(\)/);
+ assert.match(coordinator,/await tx\.delete\(key\)/);
+ assert.match(coordinator,/const valid=await store\.transaction\(async tx/);
+ assert.match(coordinator,/record\.epoch===epoch/);
 });
 
 test('coordinator bounds untrusted challenge, flow and session token sizes',()=>{
