@@ -92,18 +92,24 @@ export class PasskeyCoordinator extends DurableObject {
   if(path==='/recovery/consume'){
    if(typeof input.digest!=='string'||!/^[a-f0-9]{64}$/.test(input.digest))
     return Response.json({consumed:false});
-   const consumed=await store.transaction(async tx=>{
-    const key='recovery_digest';
+   const result=await store.transaction(async tx=>{
+    const key='recovery_digest', rateKey='recovery_attempts';
+    const previous=await tx.get(rateKey);
+    const rate=previous&&previous.until>Date.now()?previous:{count:0,until:Date.now()+900000};
+    if(rate.count>=5)return {consumed:false,limited:true};
+    rate.count++;
+    await tx.put(rateKey,rate);
     const current=await tx.get(key);
-    if(!current)return false;
-    // No early exit on digest mismatch.
+    if(!current)return {consumed:false,limited:false};
+    // Compare every digest character; never short-circuit on mismatch.
     let diff=0;
     for(let i=0;i<64;i++)diff|=current.digest.charCodeAt(i)^input.digest.charCodeAt(i);
-    if(diff!==0)return false;
+    if(diff!==0)return {consumed:false,limited:false};
     await tx.delete(key);
-    return true;
+    await tx.delete(rateKey);
+    return {consumed:true,limited:false};
    });
-   return Response.json({consumed});
+   return Response.json(result);
   }
   if(path==='/session/create'){
    const token=crypto.randomUUID()+crypto.randomUUID();
