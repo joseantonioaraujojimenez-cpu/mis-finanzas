@@ -34,5 +34,8 @@ Estado: **REVISIÓN PRELIMINAR; NO ES UNA AUDITORÍA DE SEGURIDAD INDEPENDIENTE.
 7. Realizar pruebas de abuso y revisión de dependencias; las pruebas automatizadas no sustituyen una auditoría.
 8. Solo después de todo lo anterior, decidir por separado si se habilita autenticación. La conexión BBVA requiere una revisión y autorización posterior.
 
+## Aislamiento de despliegue
+La configuración Wrangler usa el nombre `mis-finanzas-auth-staging`, distinto del Worker de producción existente `mis-finanzas-bbva`. Esta separación evita que un despliegue accidental desde esta rama sustituya el Worker actual. Antes de cualquier publicación, verificar también la cuenta Cloudflare y que no existan rutas/custom domains asociados al Worker de staging.
+
 ## Decisión actual
 **No desplegar, no fusionar a main y no activar Face ID ni BBVA.** Mantener el bloqueo 503 y la aplicación pública actual sin cambios hasta completar los puntos anteriores.
