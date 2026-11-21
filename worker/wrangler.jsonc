@@ -1,0 +1,10 @@
+{
+  "name": "mis-finanzas-bbva",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "kv_namespaces": [
+    { "binding": "AUTH_KV", "id": "REPLACE_WITH_EXISTING_KV_NAMESPACE_ID" }
+  ]
+}
