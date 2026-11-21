@@ -56,7 +56,7 @@ export class PasskeyCoordinator extends DurableObject {
   }
   if(path==='/credential/enroll'){
    // First-writer-wins. A fresh bootstrap secret is still required at the Worker layer.
-   if(!input.credential || typeof input.credential.id!=='string' || input.credential.id.length<1 || input.credential.id.length>1024 || !Array.isArray(input.credential.publicKey) || input.credential.publicKey.length<32 || input.credential.publicKey.length>4096 || !input.credential.publicKey.every(x=>Number.isInteger(x)&&x>=0&&x<=255) || !Number.isSafeInteger(input.credential.counter) || input.credential.counter<0)
+   if(!input.credential || typeof input.credential.id!=='string' || input.credential.id.length<1 || input.credential.id.length>1024 || !Array.isArray(input.credential.publicKey) || input.credential.publicKey.length<32 || input.credential.publicKey.length>4096 || !input.credential.publicKey.every(x=>Number.isInteger(x)&&x>=0&&x<=255) || !Number.isSafeInteger(input.credential.counter) || input.credential.counter<0 || (input.credential.transports!==undefined && (!Array.isArray(input.credential.transports) || input.credential.transports.length>8 || !input.credential.transports.every(x=>typeof x==='string' && ['ble','hybrid','internal','nfc','usb','smart-card'].includes(x)))))
     return Response.json({error:'Invalid credential'},{status:400});
    const enrolled=await store.transaction(async tx=>{
     if(await tx.get('owner_credential'))return false;
