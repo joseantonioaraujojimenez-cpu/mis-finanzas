@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mis Finanzas · Face ID de prueba</title>
+<style>
+*{box-sizing:border-box}body{font:16px system-ui,sans-serif;background:#eef3f5;color:#16313c;margin:0;padding:24px}main{max-width:460px;margin:30px auto;background:white;padding:24px;border-radius:20px;box-shadow:0 8px 24px #16313c18}button,input{width:100%;font:inherit;border-radius:10px;padding:14px;margin:8px 0;border:1px solid #b8c8cd}button{background:#16313c;color:white}button:disabled{opacity:.45}small{color:#50666f}h1{margin-top:0}#status{white-space:pre-wrap}
+</style></head><body><main>
+<small>MIS FINANZAS · ENTORNO INDEPENDIENTE</small><h1>Face ID de prueba</h1>
+<p>No accede a BBVA ni contiene tus datos financieros.</p>
+<label for="bootstrap">Clave de alta inicial</label><input id="bootstrap" type="password" autocomplete="off" maxlength="256">
+<button id="register" disabled>Registrar passkey</button><button id="login" disabled>Entrar con Face ID</button>
+<button id="check" disabled>Comprobar sesión</button><button id="logout" disabled>Cerrar sesión</button>
+<p id="status" role="status" aria-live="polite">Comprobando disponibilidad…</p>
+<small>El iPhone decide si usa Face ID o el código del dispositivo. La sesión dura 15 minutos y no se guarda en el navegador.</small>
+</main><script src="/face-id.js" defer></script></body></html>

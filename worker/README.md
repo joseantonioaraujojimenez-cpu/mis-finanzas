@@ -1,6 +1,6 @@
 # Módulo experimental de Face ID (WebAuthn)
 
-**NO desplegar ni conectar BBVA todavía.** El acceso permanece bloqueado por una respuesta HTTP 503 intencional hasta completar pruebas de integración, auditoría y alta segura.
+**No desplegar en producción ni conectar BBVA.** El Worker original permanece bloqueado por HTTP 503. La configuración `wrangler.faceid-test.jsonc` prepara un Worker separado, con origen y RP ID exclusivos y sin servicios bancarios. Solo se habilita en ese dominio cuando existe el secreto de alta. Véase [prueba aislada](../docs/PRUEBA_FACE_ID_AISLADA.md).
 
 ## Implementado en rama de desarrollo
 - WebAuthn con origen GitHub Pages y RP ID fijados.

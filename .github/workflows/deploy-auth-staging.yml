@@ -1,4 +1,4 @@
-name: Deploy authentication staging Worker
+name: Deploy isolated Face ID test Worker
 
 on:
   workflow_dispatch:
@@ -23,7 +23,11 @@ jobs:
 
       - name: Install Worker dependencies
         working-directory: worker
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
+
+      - name: Run security checks
+        working-directory: worker
+        run: npm test
 
       - name: Deploy isolated staging Worker
         working-directory: worker
@@ -33,4 +37,4 @@ jobs:
         run: |
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
-          npx wrangler deploy --config wrangler.jsonc
+          npx wrangler deploy --config wrangler.faceid-test.jsonc

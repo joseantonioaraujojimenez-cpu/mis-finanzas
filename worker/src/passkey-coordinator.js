@@ -51,8 +51,8 @@ export class PasskeyCoordinator extends DurableObject {
    return Response.json({challenge:result});
   }
   if(path==='/credential/get'){
-   const credential=await store.get('owner_credential');
-   return Response.json({credential:credential||null});
+   const result=await store.transaction(async tx=>({credential:(await tx.get('owner_credential'))||null,epoch:(await tx.get('session_epoch'))||0}));
+   return Response.json(result);
   }
   if(path==='/credential/enroll'){
    // First-writer-wins. A fresh bootstrap secret is still required at the Worker layer.
@@ -162,6 +162,19 @@ export class PasskeyCoordinator extends DurableObject {
     return true;
    });
    return Response.json({replaced});
+  }
+  if(path==='/session/authenticate'){
+   const token=crypto.randomUUID()+crypto.randomUUID();
+   const accepted=await store.transaction(async tx=>{
+    const c=await tx.get('owner_credential'),epoch=(await tx.get('session_epoch'))||0;
+    if(!c||epoch!==input.epoch||c.id!==input.id||c.counter!==input.previousCounter||!Number.isSafeInteger(input.counter)||input.counter<0)return false;
+    if(c.counter>0&&input.counter<=c.counter)return false;
+    c.counter=input.counter;
+    await tx.put('owner_credential',c);
+    await tx.put('session:'+token,{expires:Date.now()+900000,epoch});
+    return true;
+   });
+   return Response.json({token:accepted?token:null});
   }
   if(path==='/session/create'){
    const token=crypto.randomUUID()+crypto.randomUUID();

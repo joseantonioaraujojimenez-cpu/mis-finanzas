@@ -20,13 +20,16 @@ jobs:
           node-version: '22'
       - name: Install worker dependencies
         working-directory: worker
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Run security checks
         working-directory: worker
         run: npm test
       - name: Build Worker (no deployment)
         working-directory: worker
         run: npx wrangler deploy --dry-run --outdir /tmp/mis-finanzas-worker-build
+      - name: Build isolated Face ID test (no deployment)
+        working-directory: worker
+        run: npx wrangler deploy --dry-run --config wrangler.faceid-test.jsonc --outdir /tmp/mis-finanzas-faceid-build
       - name: Smoke test local Worker (no banking access)
         working-directory: worker
         run: |

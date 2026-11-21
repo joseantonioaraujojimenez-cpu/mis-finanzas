@@ -48,7 +48,7 @@ test('rate limits cover both options and verification endpoints',()=>{
  assert.match(worker,/\['\/auth\/register\/options','\/auth\/register\/verify','\/auth\/login\/options','\/auth\/login\/verify'\]\.includes\(url\.pathname\)/);
 });
 test('worker requires JSON and exact origin for authentication',()=>{
- assert.match(worker,/origin!==ORIGIN/);
+ assert.match(worker,/origin!==allowedOrigin/);
  assert.match(worker,/application\/json/);
  assert.match(worker,/JSON required/);
 });
@@ -100,7 +100,7 @@ test('unsupported HTTP methods are rejected at entry point',()=>{
 });
 
 test('public service status reports passkeys disabled until review',()=>{
- assert.match(worker,/passkeys:'disabled pending review'/);
+ assert.match(worker,/passkeys:ready\?'enabled':'disabled pending review'/);
  assert.match(worker,/request\.method==='GET'/);
 });
 
@@ -237,4 +237,36 @@ test('legacy recovery-code consumption cannot bypass verified credential replace
  assert.doesNotMatch(harness,/'\/recovery\/consume'/);
  assert.match(coordinator,/if\(path==='\/recovery\/finalize'\)/);
  assert.match(coordinator,/const consumed=await tx\.get\('recovery_challenge_consumed'\)/);
+});
+
+test('only the separate test hostname can enable passkeys with a configured secret',()=>{
+ const config=JSON.parse(readFileSync(new URL('../wrangler.faceid-test.jsonc',import.meta.url),'utf8'));
+ const baseline=JSON.parse(readFileSync(new URL('../wrangler.jsonc',import.meta.url),'utf8'));
+ assert.equal(config.name,'mis-finanzas-faceid-test');
+ assert.equal(config.vars.FACEID_TEST_MODE,'enabled');
+ assert.equal(config.assets.run_worker_first,true);
+ assert.equal(baseline.vars?.FACEID_TEST_MODE,undefined);
+ assert.match(worker,/env\.FACEID_TEST_MODE==='enabled' && url\.origin===TEST_ORIGIN/);
+ assert.match(worker,/env\.PASSKEY_BOOTSTRAP_SECRET\.length>=32/);
+ assert.match(worker,/expectedOrigin:allowedOrigin/);
+ assert.match(worker,/expectedRPID:rpID/);
+ assert.match(worker,/authenticatorAttachment:'platform'/);
+});
+
+test('verified authentication commits the counter and session in a single transaction',()=>{
+ const coordinator=readFileSync(new URL('../src/passkey-coordinator.js',import.meta.url),'utf8');
+ assert.match(worker,/state\(env,'\/session\/authenticate'/);
+ assert.doesNotMatch(worker,/state\(env,'\/session\/create'/);
+ assert.match(coordinator,/path==='\/session\/authenticate'[\s\S]*?store\.transaction/);
+ assert.match(coordinator,/epoch!==input\.epoch/);
+});
+
+test('isolated browser page contains no third-party scripts or persistent token storage',()=>{
+ const html=readFileSync(new URL('../faceid-test/face-id.html',import.meta.url),'utf8');
+ const js=readFileSync(new URL('../faceid-test/face-id.js',import.meta.url),'utf8');
+ assert.match(html,/src="\/face-id\.js"/);
+ assert.doesNotMatch(html,/https?:\/\//);
+ assert.doesNotMatch(js,/localStorage|sessionStorage|indexedDB|https?:\/\//);
+ assert.match(js,/navigator\.credentials\.create/);
+ assert.match(js,/navigator\.credentials\.get/);
 });

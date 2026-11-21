@@ -2,6 +2,8 @@
 
 Estado: **NO APTO PARA PRODUCCIÓN**. Las pruebas automáticas locales han pasado, pero no prueban el registro WebAuthn en un iPhone real ni autorizan un despliegue.
 
+La versión independiente para pruebas físicas se prepara con el Worker `mis-finanzas-faceid-test`. Instrucciones: [Prueba aislada de Face ID](PRUEBA_FACE_ID_AISLADA.md). El Worker anterior y la aplicación principal permanecen sin habilitar.
+
 ## 1. Prueba real de Face ID (pendiente)
 - Probar en iPhone con Safari, HTTPS y Face ID activado.
 - Registrar una única credencial con un secreto de alta **nuevo**, introducido directamente en la página de pruebas; no compartirlo en chats ni subirlo a GitHub.

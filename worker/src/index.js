@@ -9,6 +9,7 @@ import {
 const ORIGIN = 'https://joseantonioaraujojimenez-cpu.github.io';
 const RP_ID = 'joseantonioaraujojimenez-cpu.github.io';
 const RP_NAME = 'Mis Finanzas';
+const TEST_ORIGIN = 'https://mis-finanzas-faceid-test.joseantonioaraujojimenez.workers.dev';
 const json = (value, status = 200, extra = {}) => new Response(JSON.stringify(value), {
   status, headers: { 'Content-Type':'application/json; charset=utf-8', 'Cache-Control':'no-store',
     'X-Content-Type-Options':'nosniff', 'Referrer-Policy':'no-referrer',
@@ -22,8 +23,8 @@ const secureEq = (a,b) => {
   for(let i=0;i<Math.max(aa.length,bb.length);i++)diff|=(aa[i]||0)^(bb[i]||0);
   return diff===0;
 };
-const cors = (origin) => origin === ORIGIN ? {
-  'Access-Control-Allow-Origin':ORIGIN, 'Access-Control-Allow-Methods':'GET,POST,OPTIONS',
+const cors = (origin,allowedOrigin) => origin === allowedOrigin ? {
+  'Access-Control-Allow-Origin':allowedOrigin, 'Access-Control-Allow-Methods':'GET,POST,OPTIONS',
   'Access-Control-Allow-Headers':'Content-Type,Authorization', 'Vary':'Origin'
 } : {};
 const state = async (env,path,body={}) => {
@@ -46,19 +47,34 @@ const readBody = async req => {
 };
 export default {
  async fetch(request,env) {
-  const url=new URL(request.url), origin=request.headers.get('Origin'), h=cors(origin);
-  if(request.method==='OPTIONS')return new Response(null,{status:origin===ORIGIN?204:403,headers:{'Cache-Control':'no-store',...h}});
+  const url=new URL(request.url), origin=request.headers.get('Origin');
+  const isolated=env.FACEID_TEST_MODE==='enabled' && url.origin===TEST_ORIGIN;
+  const allowedOrigin=isolated?TEST_ORIGIN:ORIGIN;
+  const rpID=isolated?new URL(TEST_ORIGIN).hostname:RP_ID;
+  const ready=isolated && Boolean(env.PASSKEY_COORDINATOR) && typeof env.PASSKEY_BOOTSTRAP_SECRET==='string' && env.PASSKEY_BOOTSTRAP_SECRET.length>=32;
+  const h=cors(origin,allowedOrigin);
+  if(isolated && request.method==='GET' && ['/face-id','/face-id.js'].includes(url.pathname) && env.TEST_ASSETS){
+   const asset=await env.TEST_ASSETS.fetch(new Request(TEST_ORIGIN+(url.pathname==='/face-id'?'/face-id.html':'/face-id.js')));
+   const headers=new Headers(asset.headers);
+   headers.set('Cache-Control','no-store');
+   headers.set('Content-Security-Policy',"default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+   headers.set('X-Content-Type-Options','nosniff');
+   headers.set('Referrer-Policy','no-referrer');
+   headers.set('X-Frame-Options','DENY');
+   return new Response(asset.body,{status:asset.status,headers});
+  }
+  if(request.method==='OPTIONS')return new Response(null,{status:origin===allowedOrigin?204:403,headers:{'Cache-Control':'no-store',...h}});
   if(request.method!=='GET' && request.method!=='POST')return json({error:'Method not allowed'},405,h);
   if(url.pathname==='/')return request.method==='GET'
-    ? json({service:'Mis Finanzas',bank_connected:false,passkeys:'disabled pending review'},200,h)
+    ? json({service:'Mis Finanzas',bank_connected:false,passkeys:ready?'enabled':'disabled pending review',isolated},200,h)
     : json({error:'Method not allowed'},405,h);
   if(!url.pathname.startsWith('/auth/'))return json({error:'Not found'},404,h);
   if(!['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify','/auth/status','/auth/logout'].includes(url.pathname))return json({error:'Not found'},404,h);
   // FAIL CLOSED: WebAuthn integration and recovery have not been audited or tested
   // with a real authenticator. Banking and passkey enrollment remain disabled.
-  if(['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify'].includes(url.pathname))
+  if(!ready && ['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify'].includes(url.pathname))
     return json({error:'Passkey enrollment/login disabled pending integration tests and security review'},503,h);
-  if(origin!==ORIGIN)return json({error:'Forbidden origin'},403,h);
+  if(origin!==allowedOrigin)return json({error:'Forbidden origin'},403,h);
   if(request.headers.get('Content-Type')?.split(';')[0]?.trim()!=='application/json')return json({error:'JSON required'},415,h);
   if(!env.PASSKEY_COORDINATOR)return json({error:'Authentication storage unavailable'},503,h);
   if(request.method!=='POST')return json({error:'Method not allowed'},405,h);
@@ -75,8 +91,8 @@ export default {
     if(!env.PASSKEY_BOOTSTRAP_SECRET || !secureEq(body.bootstrap,env.PASSKEY_BOOTSTRAP_SECRET))
       return json({error:'Registration forbidden'},403,h);
     const options=await generateRegistrationOptions({
-      rpName:RP_NAME,rpID:RP_ID,userName:'propietario',userDisplayName:'Propietario',
-      attestationType:'none',authenticatorSelection:{userVerification:'required',residentKey:'required'},
+      rpName:RP_NAME+' · Pruebas',rpID,userName:'propietario',userDisplayName:'Propietario',
+      attestationType:'none',authenticatorSelection:{userVerification:'required',residentKey:'required',authenticatorAttachment:'platform'},
       excludeCredentials:[]
     });
     const {id:flow}=await state(env,'/challenge/create',{kind:'register',challenge:options.challenge});
@@ -90,8 +106,8 @@ export default {
     const {challenge}=await state(env,'/challenge/consume',{kind:'register',id:body.flow});
     if(!challenge)return json({error:'Expired challenge'},400,h);
     const result=await verifyRegistrationResponse({
-      response:body.response,expectedChallenge:challenge,expectedOrigin:ORIGIN,
-      expectedRPID:RP_ID,requireUserVerification:true
+      response:body.response,expectedChallenge:challenge,expectedOrigin:allowedOrigin,
+      expectedRPID:rpID,requireUserVerification:true
     });
     if(!result.verified || !result.registrationInfo)return json({error:'Verification failed'},401,h);
     const c=result.registrationInfo.credential;
@@ -103,7 +119,7 @@ export default {
     const credential=(await state(env,'/credential/get')).credential;
     if(!credential)return json({error:'No passkey enrolled'},409,h);
     const options=await generateAuthenticationOptions({
-      rpID:RP_ID,userVerification:'required',
+      rpID,userVerification:'required',
       allowCredentials:[{id:credential.id,transports:credential.transports}]
     });
     const {id:flow}=await state(env,'/challenge/create',{kind:'login',challenge:options.challenge});
@@ -112,18 +128,17 @@ export default {
    if(url.pathname==='/auth/login/verify') {
     const body=await readBody(request);
     const {challenge:expectedChallenge}=await state(env,'/challenge/consume',{kind:'login',id:body.flow});
-    const c=(await state(env,'/credential/get')).credential;
+    const {credential:c,epoch}=await state(env,'/credential/get');
     if(!expectedChallenge||!c||body.response?.id!==c.id)
       return json({error:'Invalid or expired login'},401,h);
     const result=await verifyAuthenticationResponse({
-      response:body.response,expectedChallenge,expectedOrigin:ORIGIN,expectedRPID:RP_ID,
+      response:body.response,expectedChallenge,expectedOrigin:allowedOrigin,expectedRPID:rpID,
       requireUserVerification:true,
       credential:{id:c.id,publicKey:new Uint8Array(c.publicKey),counter:c.counter,transports:c.transports}
     });
     if(!result.verified)return json({error:'Authentication failed'},401,h);
-    const {updated}=await state(env,'/credential/counter',{id:c.id,counter:result.authenticationInfo.newCounter});
-    if(!updated)return json({error:'Counter rejected'},401,h);
-    const {token}=await state(env,'/session/create');
+    const {token}=await state(env,'/session/authenticate',{id:c.id,epoch,previousCounter:c.counter,counter:result.authenticationInfo.newCounter});
+    if(!token)return json({error:'Authentication state changed'},401,h);
     return json({authenticated:true,token,expiresIn:900},200,h);
    }
    if(url.pathname==='/auth/logout'){

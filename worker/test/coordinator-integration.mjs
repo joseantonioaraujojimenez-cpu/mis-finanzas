@@ -35,6 +35,11 @@ check((await op('/credential/counter',{id:winner.id,counter:2})).updated===false
 check((await op('/credential/counter',{id:'attacker-id',counter:3})).updated===false,'wrong credential counter accepted');
 const counterRace=await Promise.all(Array.from({length:8},()=>op('/credential/counter',{id:winner.id,counter:3})));
 check(counterRace.filter(x=>x.updated).length===1,'concurrent counter replay accepted');
+const authState=await op('/credential/get');
+const verifiedSession=await op('/session/authenticate',{id:authState.credential.id,epoch:authState.epoch,previousCounter:authState.credential.counter,counter:4});
+check(typeof verifiedSession.token==='string','verified authentication did not create session');
+check((await op('/session/validate',{token:verifiedSession.token})).valid===true,'verified session not active');
+check((await op('/credential/get')).credential.counter===4,'verified counter not committed');
 const session=await op('/session/create');
 check(typeof session.token==='string'&&session.token.length>=64,'session token missing');
 check((await op('/session/validate',{token:session.token})).valid===true,'session not valid');
