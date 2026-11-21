@@ -38,6 +38,13 @@ Se elige **código de recuperación de un solo uso**, guardado fuera del iPhone.
 ## Riesgo pendiente: no consumir antes de confirmar el reemplazo
 La operación interna actual `/recovery/consume` elimina el digest al validarlo. **No debe llamarse desde un endpoint público de recuperación**: un corte de red o un fallo al registrar el nuevo dispositivo después de consumirlo bloquearía la recuperación. Antes de habilitar el flujo, sustituirla por una operación atómica que valide el código, emita una autorización efímera de recuperación de un solo uso y **complete en una única transacción** la sustitución de la credencial, revocación de todas las sesiones y anulación del código tras verificar el registro WebAuthn. El código debe permanecer protegido contra carreras y reintentos, y la autorización efímera debe caducar.
 
+## Implementación interna actual y barrera para activación
+- `/recovery/prepare` comprueba el digest con límite de intentos y crea un ticket aleatorio de cinco minutos **sin consumir el código**.
+- `/recovery/finalize` exige ticket válido y credencial con formato correcto; en una sola transacción sustituye la credencial, invalida el código y el ticket y revoca todas las sesiones. Las pruebas locales incluyen carreras de finalización.
+- **Advertencia crítica:** un ticket de recuperación y una credencial con formato correcto **no prueban** que el nuevo iPhone haya completado WebAuthn. Por tanto, estos métodos son estrictamente internos; no se pueden exponer mediante rutas públicas ni aceptar un indicador `verified` enviado por el navegador.
+- Antes de habilitar el flujo público, el Worker deberá generar un desafío de registro WebAuthn vinculado al ticket, consumirlo una sola vez y ejecutar `verifyRegistrationResponse` con origen y RP ID exactos y verificación de usuario obligatoria. Solo tras esa verificación del servidor podrá invocar `/recovery/finalize`.
+- También falta la emisión inicial del código desde una sesión autenticada reciente, su presentación una sola vez, un registro de auditoría sin secretos, pruebas reales con iPhone y una revisión independiente de seguridad.
+
 ## Pruebas de aceptación obligatorias
 - Código erróneo, agotamiento de intentos y concurrencia de verificaciones.
 - Registro WebAuthn fallido o cancelado: sin sustitución de la credencial ni pérdida irreversible del código.
