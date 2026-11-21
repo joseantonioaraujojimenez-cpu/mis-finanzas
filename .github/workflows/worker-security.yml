@@ -131,7 +131,7 @@ jobs:
           trap 'kill $PID 2>/dev/null || true' EXIT
           READY=0
           for i in $(seq 1 40); do
-            STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8788/)
+            STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8788/ || true)
             if [ "$STATUS" = "404" ]; then READY=1; break; fi
             sleep 1
           done
