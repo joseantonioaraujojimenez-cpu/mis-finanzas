@@ -52,4 +52,12 @@ check(rateRace.every(x=>x.allowed===false),'concurrent requests bypassed rate li
 check((await op('/session/validate',{token:'not-a-real-token'})).valid===false,'unknown token authenticated');
 check((await op('/session/validate',{token:''})).valid===false,'empty token authenticated');
 check((await op('/session/validate',{token:'x'.repeat(300)})).valid===false,'oversized token authenticated');
+// Recovery digest must be stored once and consumed by only one concurrent request.
+const digest='a'.repeat(64),wrongDigest='b'.repeat(64);
+check((await op('/recovery/store',{digest})).stored===true,'recovery digest not stored');
+check((await op('/recovery/store',{digest:wrongDigest})).stored===false,'recovery digest overwritten');
+check((await op('/recovery/consume',{digest:wrongDigest})).consumed===false,'wrong recovery code accepted');
+const recoveryRace=await Promise.all(Array.from({length:8},()=>op('/recovery/consume',{digest})));
+check(recoveryRace.filter(x=>x.consumed).length===1,'recovery code reused concurrently');
+check((await op('/recovery/consume',{digest})).consumed===false,'recovery code replay accepted');
 console.log('Durable Object integration: challenges, enrollment, counters, sessions, rate limits OK');
