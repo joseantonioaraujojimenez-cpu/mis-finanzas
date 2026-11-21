@@ -117,3 +117,9 @@ test('authentication JSON body is bounded in UTF-8 bytes and must be an object',
  assert.match(worker,/Array\.isArray\(parsed\)/);
  assert.match(worker,/JSON object required/);
 });
+
+test('bootstrap secret is compared as UTF-8 bytes, not UTF-16 code units',()=>{
+ assert.match(worker,/new TextEncoder\(\)\.encode\(a\)/);
+ assert.match(worker,/new TextEncoder\(\)\.encode\(b\)/);
+ assert.match(worker,/diff=aa\.length\^bb\.length/);
+});
