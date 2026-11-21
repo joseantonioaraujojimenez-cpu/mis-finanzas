@@ -4,7 +4,13 @@ El Worker de pruebas permite ensayar clasificación automática, importación de
 
 La fase de consentimiento simulado permite al propietario conceder acceso de solo lectura durante 30 minutos, sincronizar exclusivamente los ejemplos y revocar el permiso. El estado de consentimiento se mantiene en el almacenamiento aislado y cada operación verifica de forma transaccional la sesión de la aplicación. El panel conserva su muestra ficticia incluso sin consentimiento, pero las acciones de sincronización requieren el permiso simulado. No es un consentimiento bancario legal ni activa ninguna integración externa.
 
-## Fase siguiente (requiere autorización explícita)
+## Fase autorizada: preparación del proveedor, sin conexión real
+
+El propietario autorizó preparar la consulta de saldos y movimientos de BBVA por Enable Banking. El módulo `worker/src/enable-banking-contract.js` describe las peticiones permitidas (autorización de cuenta, intercambio de código, estado y revocación de consentimiento, lecturas de saldo y movimientos); no contiene un transporte de red y no se importa desde el Worker desplegado. El callback indicado es una ruta prevista, aún no publicada. Las pruebas usan identificadores ficticios. No existe ninguna operación de pagos.
+
+El siguiente hito es comprobar si el propietario tiene una aplicación **Sandbox** de Enable Banking. BBVA España dispone de un sandbox según su documentación. La integración real y cualquier dato financiero permanecen desconectados hasta completar el consentimiento oficial, revisar el tratamiento y almacenamiento de datos y probar el sandbox. No introducir credenciales bancarias o claves privadas en el chat ni en GitHub.
+
+## Lista de control antes de activar una conexión real
 
 - Verificar el proveedor de acceso a cuentas y sus condiciones, disponibilidad de BBVA España y permisos de solo lectura.
 - Solicitar consentimiento al titular mediante el flujo oficial de autorización del proveedor. No pedir credenciales bancarias a través de MIS FINANZAS.
