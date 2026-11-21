@@ -14,7 +14,7 @@ test('sandbox JWT uses a short-lived valid RS256 signature',async()=>{
 });
 test('sandbox check does not read bank data or initiate authorization',async()=>{
  const calls=[];const transport=async(url,init)=>{calls.push({url,method:init.method,redirect:init.redirect});return {ok:true,json:async()=>calls.length===1?app:{aspsps:[{country:'ES',name:'BBVA'}]}};};
- const result=await checkSandbox({appId:id,pem:privateKey,transport});assert.equal(result.verified,true);assert.equal(result.bbvaAvailable,true);assert.deepEqual(calls.map(c=>c.method),['GET','GET']);assert.equal(calls[0].url,'https://api.enablebanking.com/application');assert.match(calls[1].url,/\/aspsps\?country=ES/);assert.ok(calls.every(c=>c.redirect==='error'));
+ const result=await checkSandbox({appId:id,pem:privateKey,transport});assert.equal(result.verified,true);assert.equal(result.bbvaAvailable,true);assert.deepEqual(calls.map(c=>c.method),['GET','GET']);assert.equal(calls[0].url,'https://api.enablebanking.com/application');assert.match(calls[1].url,/\/aspsps\?country=ES/);assert.ok(calls.every(c=>c.redirect==='manual'));
 });
 test('production, missing callback and non-AIS apps are rejected before discovery',async()=>{
  for(const invalid of [{...app,environment:'PRODUCTION'},{...app,redirect_urls:[]},{...app,services:['AIS','PIS']}]){
