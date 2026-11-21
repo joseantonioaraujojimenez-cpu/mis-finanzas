@@ -143,7 +143,9 @@ export class PasskeyCoordinator extends DurableObject {
    const created=await store.transaction(async tx=>{
     const pending=await tx.get('recovery_ticket');
     if(!pending||pending.ticket!==input.ticket||pending.expires<=Date.now())return false;
-    await tx.delete('recovery_challenge_consumed');
+    // A consumed challenge cannot be reset to allow a second replacement attempt.
+    if(await tx.get('recovery_challenge_consumed'))return false;
+    if(await tx.get('recovery_challenge'))return false;
     await tx.put('recovery_challenge',{ticket:input.ticket,challenge:input.challenge,expires:Math.min(pending.expires,Date.now()+300000)});
     return true;
    });
