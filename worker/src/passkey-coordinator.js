@@ -43,8 +43,9 @@ export class PasskeyCoordinator extends DurableObject {
    const result=await store.transaction(async tx=>{
     const key='challenge:'+input.id;
     const item=await tx.get(key);
-    if(!item||item.kind!==input.kind||item.expires<Date.now())return null;
+    if(!item)return null;
     await tx.delete(key);
+    if(item.kind!==input.kind||item.expires<=Date.now())return null;
     return item.challenge;
    });
    return Response.json({challenge:result});
