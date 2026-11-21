@@ -187,8 +187,11 @@ export class PasskeyCoordinator extends DurableObject {
   }
   if(path==='/session/create'){
    const token=crypto.randomUUID()+crypto.randomUUID();
-   const epoch=(await store.get('session_epoch'))||0;
-   await store.put('session:'+token,{expires:now+900000,epoch});
+   // Creating a session and reading its epoch must be atomic with global revocation.
+   await store.transaction(async tx=>{
+    const epoch=(await tx.get('session_epoch'))||0;
+    await tx.put('session:'+token,{expires:now+900000,epoch});
+   });
    return Response.json({token,expiresIn:900});
   }
   if(path==='/session/revoke-all'){
