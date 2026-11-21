@@ -1,3 +1,4 @@
+export { PasskeyCoordinator } from './passkey-coordinator.js';
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
