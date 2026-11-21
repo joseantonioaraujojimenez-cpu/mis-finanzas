@@ -149,3 +149,14 @@ test('recovery cannot be invoked from public Worker routes',()=>{
  assert.doesNotMatch(routes[0],/\/auth\/recovery|\/recovery\/prepare|\/recovery\/finalize/);
  assert.doesNotMatch(worker,/state\(env,'\/recovery\/(?:prepare|finalize)'/);
 });
+
+test('recovery verification requires real WebAuthn attestation and user verification',()=>{
+ const recovery=readFileSync(new URL('../src/recovery-webauthn.js',import.meta.url),'utf8');
+ assert.match(recovery,/verifyRegistrationResponse\(/);
+ assert.match(recovery,/expectedChallenge:challenge/);
+ assert.match(recovery,/expectedOrigin:origin/);
+ assert.match(recovery,/expectedRPID:rpID/);
+ assert.match(recovery,/requireUserVerification:true/);
+ assert.match(recovery,/if\(!result\.verified\|\|!result\.registrationInfo\)/);
+ assert.doesNotMatch(worker,/from '\.\/recovery-webauthn\.js'/);
+});
