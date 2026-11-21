@@ -20,7 +20,7 @@ button{background:#102c34;color:white;cursor:pointer}button:disabled{opacity:.5}
 <small>La clave de alta y la sesión se mantienen únicamente en memoria; no se guardan en el navegador. La verificación se realiza en el servidor.</small>
 </section><script type="module">
 import {startRegistration,startAuthentication} from 'https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@13/+esm';
-const BASE='https://mis-finanzas-bbva.joseantonioaraujojimenez.workers.dev';
+const BASE='https://mis-finanzas-auth-staging.joseantonioaraujojimenez.workers.dev';
 const $=id=>document.getElementById(id);
 let sessionToken=null;
 function setSession(token){sessionToken=token;$('logout').disabled=!token;}
