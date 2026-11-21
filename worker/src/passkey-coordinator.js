@@ -77,6 +77,34 @@ export class PasskeyCoordinator extends DurableObject {
    });
    return Response.json({updated});
   }
+  // Internal-only recovery-code primitives. No public recovery routes are enabled.
+  // The Worker must generate a high-entropy code and SHA-256 digest; plaintext is never stored.
+  if(path==='/recovery/store'){
+   if(typeof input.digest!=='string'||!/^[a-f0-9]{64}$/.test(input.digest))
+    return Response.json({error:'Invalid recovery digest'},{status:400});
+   const stored=await store.transaction(async tx=>{
+    if(await tx.get('recovery_digest'))return false;
+    await tx.put('recovery_digest',{digest:input.digest,created:Date.now()});
+    return true;
+   });
+   return Response.json({stored});
+  }
+  if(path==='/recovery/consume'){
+   if(typeof input.digest!=='string'||!/^[a-f0-9]{64}$/.test(input.digest))
+    return Response.json({consumed:false});
+   const consumed=await store.transaction(async tx=>{
+    const key='recovery_digest';
+    const current=await tx.get(key);
+    if(!current)return false;
+    // No early exit on digest mismatch.
+    let diff=0;
+    for(let i=0;i<64;i++)diff|=current.digest.charCodeAt(i)^input.digest.charCodeAt(i);
+    if(diff!==0)return false;
+    await tx.delete(key);
+    return true;
+   });
+   return Response.json({consumed});
+  }
   if(path==='/session/create'){
    const token=crypto.randomUUID()+crypto.randomUUID();
    await store.put('session:'+token,{expires:now+900000});
