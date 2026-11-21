@@ -123,3 +123,17 @@ jobs:
           grep -qi '^vary: Origin' /tmp/mis-finanzas-cors.txt
           # CORS preflight must not be cached by intermediaries.
           grep -qi '^cache-control: no-store' /tmp/mis-finanzas-cors.txt
+      - name: Integration test Durable Object with local Wrangler (no deployment)
+        working-directory: worker
+        run: |
+          npx wrangler dev --config wrangler.test.jsonc --local --port 8788 > /tmp/mis-finanzas-coordinator.log 2>&1 &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          READY=0
+          for i in $(seq 1 40); do
+            STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8788/)
+            if [ "$STATUS" = "404" ]; then READY=1; break; fi
+            sleep 1
+          done
+          if [ "$READY" != "1" ]; then cat /tmp/mis-finanzas-coordinator.log; exit 1; fi
+          node test/coordinator-integration.mjs
