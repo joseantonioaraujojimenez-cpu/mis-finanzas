@@ -70,8 +70,9 @@ export default {
     ? json({service:'Mis Finanzas',bank_connected:false,passkeys:ready?'enabled':'disabled pending review',isolated},200,h)
     : json({error:'Method not allowed'},405,h);
   if(!url.pathname.startsWith('/auth/'))return json({error:'Not found'},404,h);
-  if(!['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify','/auth/status','/auth/logout','/auth/demo'].includes(url.pathname))return json({error:'Not found'},404,h);
+  if(!['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify','/auth/status','/auth/logout','/auth/demo','/auth/demo/consent'].includes(url.pathname))return json({error:'Not found'},404,h);
   if(url.pathname==='/auth/demo' && !ready)return json({error:'Not found'},404,h);
+  if(url.pathname==='/auth/demo/consent' && !ready)return json({error:'Not found'},404,h);
   // FAIL CLOSED: WebAuthn integration and recovery have not been audited or tested
   // with a real authenticator. Banking and passkey enrollment remain disabled.
   if(!ready && ['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify'].includes(url.pathname))
@@ -150,6 +151,15 @@ export default {
     return json({loggedOut:true},200,h);
    }
    if(url.pathname==='/auth/status')return json({authenticated:await isAuthorized(request,env)},200,h);
+   if(url.pathname==='/auth/demo/consent'){
+    const {action}=await readBody(request);
+    if(!['status','grant','revoke','sync'].includes(action))return json({error:'Invalid simulated consent action'},400,h);
+    const token=request.headers.get('Authorization')?.replace(/^Bearer /,'');
+    const consent=await state(env,'/demo/consent',{token,action});
+    if(!consent.authorized)return json({error:'Session expired or invalid'},401,h);
+    if(action==='sync'&&!consent.canSync)return json({error:'Simulated consent required'},403,h);
+    return json({demo:true,bankConnected:false,consent,...(action==='sync'?demoBankSnapshot():{})},200,h);
+   }
    if(url.pathname==='/auth/demo'){
     if(!await isAuthorized(request,env))return json({error:'Session expired or invalid'},401,h);
     // Entirely fictional entries; no banking API, account or database is used.

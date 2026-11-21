@@ -1,17 +1,22 @@
 'use strict';
 const $=id=>document.getElementById(id);
-let token=null,ready=false,busy=false,expires=0,displayed=false;
+let token=null,ready=false,busy=false,expires=0,displayed=false,consentUntil=0;
 const show=message=>{$('status').textContent=message;};
 function render(){
  $('register').disabled=!ready||busy||!!token;
  $('login').disabled=!ready||busy||!!token;
  $('check').disabled=busy||!token;
  $('logout').disabled=busy||!token;
- $('sync').disabled=busy||!token||!displayed;
+ const consentActive=consentUntil>Date.now();
+ $('sync').disabled=busy||!token||!displayed||!consentActive;
+ $('consentGrant').disabled=busy||!token||!displayed||consentActive||!$('consentAccept').checked;
+ $('consentRevoke').disabled=busy||!token||!displayed||!consentActive;
+ $('consentAccept').disabled=busy||!token||consentActive;
+ $('consentStatus').textContent=consentActive?'Consentimiento simulado activo hasta '+new Date(consentUntil).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Sin consentimiento simulado activo.';
  $('locked').hidden=!!token&&displayed;
  $('dashboard').hidden=!token||!displayed||document.hidden;
 }
-function reset(){token=null;expires=0;displayed=false;for(const id of ['demoIncome','demoExpense','demoBalance','demoCount','demoCategories','demoMoves','sessionTime','syncSummary'])$(id).replaceChildren();render();}
+function reset(){token=null;expires=0;displayed=false;consentUntil=0;$('consentAccept').checked=false;for(const id of ['demoIncome','demoExpense','demoBalance','demoCount','demoCategories','demoMoves','sessionTime','syncSummary'])$(id).replaceChildren();render();}
 const euro=n=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(n);
 function element(tag,text,klass){const e=document.createElement(tag);if(text!==undefined)e.textContent=String(text);if(klass)e.className=klass;return e;}
 function showDemo(data){
@@ -24,7 +29,9 @@ function showDemo(data){
  $('demoMoves').replaceChildren();for(const m of [...movements].reverse()){const row=element('div',undefined,'row'),details=element('div',m.concept);details.append(element('small',`${m.date} · ${m.category} · ${m.scope}`));row.append(details,element('span',euro(m.amount),`amount ${m.amount>0?'positive':'negative'}`));$('demoMoves').append(row);}
  displayed=true;render();
 }
-async function loadDemo(){const session=token;const data=await api('/auth/demo',{},session);if(!session||token!==session||Date.now()>=expires)throw Error('Sesión caducada.');showDemo(data);}
+function showConsent(data){if(data.demo!==true||data.bankConnected!==false||data.consent?.simulated!==true||data.consent.payments!==false)throw Error('Consentimiento de prueba no disponible.');consentUntil=data.consent.active?data.consent.expires:0;render();}
+async function consentAction(action){const session=token;const data=await api('/auth/demo/consent',{action},session);if(!session||token!==session||Date.now()>=expires)throw Error('Sesión caducada.');showConsent(data);return data;}
+async function loadDemo(){const session=token;const data=await api('/auth/demo',{},session);if(!session||token!==session||Date.now()>=expires)throw Error('Sesión caducada.');await consentAction('status');if(token!==session||Date.now()>=expires)throw Error('Sesión caducada.');showDemo(data);}
 async function api(path,body,session){
  const r=await fetch(path,{method:'POST',cache:'no-store',credentials:'same-origin',headers:{'Content-Type':'application/json',...(session?{Authorization:'Bearer '+session}:{})},body:JSON.stringify(body)});
  const data=await r.json();if(!r.ok)throw Error(data.error||'Error del servidor');return data;
@@ -58,9 +65,12 @@ $('login').onclick=()=>run(async()=>{
  try{await loadDemo();show('Sesión activa durante 15 minutos.');}catch(e){reset();throw e;}
 });
 $('check').onclick=()=>run(async()=>{const result=await api('/auth/status',{},token);if(!result.authenticated)reset();show(result.authenticated?'Sesión activa.':'Sesión caducada o revocada.');});
-$('sync').onclick=()=>run(async()=>{try{await loadDemo();show('Movimientos simulados actualizados sin duplicados.');}catch(e){reset();throw e;}});
+$('consentAccept').onchange=render;
+$('consentGrant').onclick=()=>run(async()=>{if(!$('consentAccept').checked)return;await consentAction('grant');$('consentAccept').checked=false;show('Consentimiento simulado activado. BBVA real sigue desconectado.');});
+$('consentRevoke').onclick=()=>run(async()=>{await consentAction('revoke');$('consentAccept').checked=false;show('Consentimiento simulado revocado.');});
+$('sync').onclick=()=>run(async()=>{try{const data=await consentAction('sync');showDemo(data);show('Movimientos simulados actualizados sin duplicados.');}catch(e){try{await consentAction('status');}catch{reset();}throw e;}});
 $('logout').onclick=()=>run(async()=>{const session=token;reset();await api('/auth/logout',{},session);show('Sesión cerrada.');});
-setInterval(()=>{if(token&&Date.now()>=expires){reset();show('Sesión caducada.');}else if(token&&displayed){const seconds=Math.max(0,Math.ceil((expires-Date.now())/1000));$('sessionTime').textContent=`Sesión restante: ${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;}},1000);
+setInterval(()=>{if(token&&Date.now()>=expires){reset();show('Sesión caducada.');}else if(token&&displayed){const seconds=Math.max(0,Math.ceil((expires-Date.now())/1000));$('sessionTime').textContent=`Sesión restante: ${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;if(consentUntil&&consentUntil<=Date.now()){consentUntil=0;render();}}},1000);
 document.addEventListener('visibilitychange',async()=>{if(document.hidden){render();return;}if(token){displayed=false;render();try{await loadDemo();}catch(e){reset();show('Sesión no disponible. Vuelve a entrar.');}}});
 window.addEventListener('pagehide',()=>{$('bootstrap').value='';reset();});
 (async()=>{try{

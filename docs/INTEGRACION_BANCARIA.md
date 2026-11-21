@@ -2,6 +2,8 @@
 
 El Worker de pruebas permite ensayar clasificación automática, importación de movimientos de ejemplo, deduplicación e importes en céntimos. No se conecta a BBVA ni a Enable Banking. No utiliza credenciales bancarias ni persiste movimientos reales.
 
+La fase de consentimiento simulado permite al propietario conceder acceso de solo lectura durante 30 minutos, sincronizar exclusivamente los ejemplos y revocar el permiso. El estado de consentimiento se mantiene en el almacenamiento aislado y cada operación verifica de forma transaccional la sesión de la aplicación. El panel conserva su muestra ficticia incluso sin consentimiento, pero las acciones de sincronización requieren el permiso simulado. No es un consentimiento bancario legal ni activa ninguna integración externa.
+
 ## Fase siguiente (requiere autorización explícita)
 
 - Verificar el proveedor de acceso a cuentas y sus condiciones, disponibilidad de BBVA España y permisos de solo lectura.

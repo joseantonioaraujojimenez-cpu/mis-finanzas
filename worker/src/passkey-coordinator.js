@@ -2,6 +2,7 @@
 // All registration and challenge mutations must go through this Durable Object.
 // Do not use KV get()+delete() for one-time challenges.
 import { DurableObject } from 'cloudflare:workers';
+import {transitionDemoConsent} from './demo-consent.js';
 
 export class PasskeyCoordinator extends DurableObject {
  async fetch(request) {
@@ -214,6 +215,18 @@ export class PasskeyCoordinator extends DurableObject {
     return Boolean(record)&&record.epoch===epoch;
    });
    return Response.json({valid});
+  }
+  if(path==='/demo/consent'){
+   if(typeof input.token!=='string'||input.token.length>256||!['status','grant','revoke','sync'].includes(input.action))return Response.json({authorized:false});
+   const result=await store.transaction(async tx=>{
+    const session=await tx.get('session:'+input.token),epoch=(await tx.get('session_epoch'))||0,now=Date.now();
+    if(!session||session.expires<=now||session.epoch!==epoch)return {authorized:false};
+    const key='demo_consent';const previous=await tx.get(key);
+    const {record,result}=transitionDemoConsent(previous,input.action,now);
+    if(record)await tx.put(key,record);else if(previous)await tx.delete(key);
+    return {authorized:true,...result};
+   });
+   return Response.json(result);
   }
   return Response.json({error:'Not found'},{status:404});
  }
