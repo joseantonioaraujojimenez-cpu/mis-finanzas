@@ -13,7 +13,7 @@ Este entorno no forma parte de la aplicación financiera. No usa la base de dato
 
 - Despliegue de pruebas [#3](https://github.com/joseantonioaraujojimenez-cpu/mis-finanzas/actions/runs/44949250206): correcto; 35 comprobaciones automatizadas superadas.
 - El propietario ha configurado el secreto de alta en Cloudflare; la pantalla de prueba carga y confirma que el servidor está habilitado.
-- El navegador remoto no dispone de autenticador de plataforma, por lo que la confirmación física está pendiente en Safari del iPhone.
+- El propietario confirmó en Safari de su iPhone el registro de passkey, la entrada con Face ID, el cierre de sesión y la entrada posterior sin introducir la clave inicial. Las restantes comprobaciones físicas siguen pendientes.
 - No se ha conectado BBVA ni se ha modificado la aplicación de producción.
 
 ## Prueba física
@@ -29,10 +29,11 @@ Este entorno no forma parte de la aplicación financiera. No usa la base de dato
 
 | Comprobación | Resultado |
 |---|---|
-| Registro inicial con el iPhone | Pendiente |
-| Acceso con verificación del dispositivo | Pendiente |
+| Registro inicial con el iPhone | Confirmado por el propietario |
+| Acceso con verificación del dispositivo | Confirmado por el propietario (Face ID) |
 | Consulta de sesión activa | Pendiente |
-| Cierre de sesión | Pendiente |
+| Cierre de sesión | Confirmado por el propietario |
+| Acceso posterior sin clave inicial | Confirmado por el propietario |
 | Cancelación de Face ID sin acceso | Pendiente |
 | Caducidad tras 15 minutos | Pendiente |
 | Segunda alta rechazada | Pendiente |
@@ -43,4 +44,4 @@ Si hay un error, anotar el mensaje visible, versión de iOS, navegador y en qué
 
 No se ha habilitado la recuperación pública. Si se pierde el autenticador, detener la prueba y revisar un procedimiento seguro de recuperación antes de reiniciar el almacenamiento aislado. No migrar esta credencial a producción. La conexión a BBVA, el consentimiento bancario y el despliegue de la aplicación principal necesitan aprobación aparte.
 
-La prueba real de Safari/iPhone y una revisión de seguridad independiente siguen siendo requisitos antes de considerar la autenticación lista para producción. Los resultados de CI no equivalen a una auditoría completa.
+Completar las comprobaciones físicas pendientes y una revisión de seguridad independiente siguen siendo requisitos antes de considerar la autenticación lista para producción. Los resultados de CI no equivalen a una auditoría completa.
