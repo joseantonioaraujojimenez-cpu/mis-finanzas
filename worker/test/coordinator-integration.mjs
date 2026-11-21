@@ -67,6 +67,9 @@ check(prepared.prepared===true&&typeof prepared.ticket==='string','recovery tick
 const recoveryChallenge='challenge-for-recovery-device-123456';
 check((await op('/recovery/challenge/create',{ticket:'invalid',challenge:recoveryChallenge})).created===false,'invalid ticket created challenge');
 check((await op('/recovery/challenge/create',{ticket:prepared.ticket,challenge:recoveryChallenge})).created===true,'recovery challenge creation failed');
+const premature={id:'premature-device',publicKey:Array(32).fill(2),counter:0};
+check((await op('/recovery/finalize',{ticket:prepared.ticket,credential:premature})).replaced===false,'recovery finalized without consumed WebAuthn challenge');
+check((await op('/credential/get')).credential.id===winner.id,'premature recovery changed credential');
 check((await op('/recovery/challenge/consume',{ticket:'invalid'})).challenge===null,'wrong ticket consumed challenge');
 check((await op('/recovery/challenge/consume',{ticket:prepared.ticket})).challenge===recoveryChallenge,'recovery challenge mismatch');
 check((await op('/recovery/challenge/consume',{ticket:prepared.ticket})).challenge===null,'recovery challenge replay succeeded');
