@@ -22,8 +22,9 @@ export async function signSandboxRequest(appId,pem,now=Date.now()){
  try{return input+'.'+b64url(sign('RSA-SHA256',message,{key,padding:constants.RSA_PKCS1_PADDING}));}catch{throw new KeyDiagnostic('rsa_sign_failed');}
 }
 export function validateSandboxApplication(app,expectedId){
- return Boolean(app&&app.kid===expectedId&&app.environment==='SANDBOX'&&app.active===true&&Array.isArray(app.services)&&app.services.length===1&&app.services[0]==='AIS'&&Array.isArray(app.redirect_urls)&&app.redirect_urls.includes(PLANNED_CALLBACK));
+ return Boolean(app&&app.kid===expectedId&&app.environment==='SANDBOX'&&app.active===true&&Array.isArray(app.services)&&app.services.includes('AIS')&&Array.isArray(app.redirect_urls)&&app.redirect_urls.includes(PLANNED_CALLBACK));
 }
+// Only AIS discovery is requested. Extra provider capabilities are reported, never invoked.
 // Deliberately limited to two configuration/discovery endpoints; no bank authorization.
 export async function checkSandbox({appId,pem,transport=fetch}){
  if(!appId||!pem)return {configured:false,verified:false,bbvaAvailable:false,reason:'missing_configuration'};
@@ -41,7 +42,7 @@ export async function checkSandbox({appId,pem,transport=fetch}){
     app_id: a?.kid===appId,
     environment: a?.environment==='SANDBOX',
     active: a?.active===true,
-    read_only: Array.isArray(a?.services)&&a.services.length===1&&a.services[0]==='AIS',
+    read_only: Array.isArray(a?.services)&&a.services.includes('AIS'),
     callback: Array.isArray(a?.redirect_urls)&&a.redirect_urls.includes(PLANNED_CALLBACK)
    };
    const serviceDiagnostic = !checks.read_only ? (
@@ -53,7 +54,8 @@ export async function checkSandbox({appId,pem,transport=fetch}){
   }
   stage='aspsps';const banks=await get('/aspsps?country=ES&psu_type=personal&service=AIS');if(banks.error)return failure(banks.error,stage,banks.status);
   if(!Array.isArray(banks.value?.aspsps))return failure('provider_invalid_response',stage,200);
+  const additionalServices=app.value.services.some(service=>service!=='AIS');
   const bbvaAvailable=banks.value.aspsps.some(bank=>bank.country==='ES'&&typeof bank.name==='string'&&bank.name.toUpperCase()==='BBVA');
-  return {configured:true,verified:true,bbvaAvailable,reason:bbvaAvailable?'ready':'bbva_not_listed'};
+  return {configured:true,verified:true,bbvaAvailable,additionalServices,reason:bbvaAvailable?'ready':'bbva_not_listed'};
  }catch{return failure('provider_unavailable',stage);}
 }
