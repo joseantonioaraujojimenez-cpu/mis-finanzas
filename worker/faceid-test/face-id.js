@@ -7,16 +7,18 @@ function render(){
  $('login').disabled=!ready||busy||!!token;
  $('check').disabled=busy||!token;
  $('logout').disabled=busy||!token;
+ $('sync').disabled=busy||!token||!displayed;
  $('locked').hidden=!!token&&displayed;
  $('dashboard').hidden=!token||!displayed||document.hidden;
 }
-function reset(){token=null;expires=0;displayed=false;for(const id of ['demoIncome','demoExpense','demoBalance','demoCount','demoCategories','demoMoves','sessionTime'])$(id).replaceChildren();render();}
+function reset(){token=null;expires=0;displayed=false;for(const id of ['demoIncome','demoExpense','demoBalance','demoCount','demoCategories','demoMoves','sessionTime','syncSummary'])$(id).replaceChildren();render();}
 const euro=n=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(n);
 function element(tag,text,klass){const e=document.createElement(tag);if(text!==undefined)e.textContent=String(text);if(klass)e.className=klass;return e;}
 function showDemo(data){
- if(data.demo!==true||data.bankConnected!==false||!Array.isArray(data.movements))throw Error('Datos de prueba no disponibles.');
- const movements=data.movements,inc=movements.filter(m=>m.amount>0).reduce((s,m)=>s+m.amount,0),out=movements.filter(m=>m.amount<0).reduce((s,m)=>s-m.amount,0);
- $('demoIncome').textContent=euro(inc);$('demoExpense').textContent=euro(out);$('demoBalance').textContent=euro(inc-out);$('demoCount').textContent=movements.length;
+ if(data.demo!==true||data.bankConnected!==false||data.source!=='simulated'||!Array.isArray(data.movements))throw Error('Datos de prueba no disponibles.');
+ const movements=data.movements;
+ $('demoIncome').textContent=euro(data.incomeCents/100);$('demoExpense').textContent=euro(data.expenseCents/100);$('demoBalance').textContent=euro(data.balanceCents/100);$('demoCount').textContent=movements.length;
+ $('syncSummary').textContent=`${movements.length} movimientos únicos · ${data.duplicates} duplicados evitados · ${data.reviewCount} pendientes de clasificar`;
  const groups=new Map();for(const m of movements.filter(m=>m.amount<0))groups.set(m.category,(groups.get(m.category)||0)-m.amount);
  $('demoCategories').replaceChildren();for(const [name,value] of [...groups].sort((a,b)=>b[1]-a[1])){const row=element('div',undefined,'row'),label=element('div',name),amount=element('strong',euro(value));row.append(label,amount);$('demoCategories').append(row);}
  $('demoMoves').replaceChildren();for(const m of [...movements].reverse()){const row=element('div',undefined,'row'),details=element('div',m.concept);details.append(element('small',`${m.date} · ${m.category} · ${m.scope}`));row.append(details,element('span',euro(m.amount),`amount ${m.amount>0?'positive':'negative'}`));$('demoMoves').append(row);}
@@ -56,6 +58,7 @@ $('login').onclick=()=>run(async()=>{
  try{await loadDemo();show('Sesión activa durante 15 minutos.');}catch(e){reset();throw e;}
 });
 $('check').onclick=()=>run(async()=>{const result=await api('/auth/status',{},token);if(!result.authenticated)reset();show(result.authenticated?'Sesión activa.':'Sesión caducada o revocada.');});
+$('sync').onclick=()=>run(async()=>{try{await loadDemo();show('Movimientos simulados actualizados sin duplicados.');}catch(e){reset();throw e;}});
 $('logout').onclick=()=>run(async()=>{const session=token;reset();await api('/auth/logout',{},session);show('Sesión cerrada.');});
 setInterval(()=>{if(token&&Date.now()>=expires){reset();show('Sesión caducada.');}else if(token&&displayed){const seconds=Math.max(0,Math.ceil((expires-Date.now())/1000));$('sessionTime').textContent=`Sesión restante: ${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;}},1000);
 document.addEventListener('visibilitychange',async()=>{if(document.hidden){render();return;}if(token){displayed=false;render();try{await loadDemo();}catch(e){reset();show('Sesión no disponible. Vuelve a entrar.');}}});

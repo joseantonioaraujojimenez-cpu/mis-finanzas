@@ -1,4 +1,5 @@
 export { PasskeyCoordinator } from './passkey-coordinator.js';
+import {demoBankSnapshot} from './bank-demo.js';
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -152,13 +153,7 @@ export default {
    if(url.pathname==='/auth/demo'){
     if(!await isAuthorized(request,env))return json({error:'Session expired or invalid'},401,h);
     // Entirely fictional entries; no banking API, account or database is used.
-    return json({demo:true,bankConnected:false,movements:[
-     {concept:'Ingreso de ejemplo',category:'Ingresos',amount:2400,scope:'Personal',date:'2026-11-01'},
-     {concept:'Vivienda de ejemplo',category:'Vivienda',amount:-620,scope:'Compartido',date:'2026-11-03'},
-     {concept:'Supermercado de ejemplo',category:'Alimentación',amount:-86.50,scope:'Compartido',date:'2026-11-14'},
-     {concept:'Transporte de ejemplo',category:'Transporte',amount:-49.90,scope:'Personal',date:'2026-11-17'},
-     {concept:'Ocio de ejemplo',category:'Ocio',amount:-28,scope:'Personal',date:'2026-11-20'}
-    ]},200,h);
+    return json({demo:true,bankConnected:false,...demoBankSnapshot()},200,h);
    }
    return json({error:'Not found'},404,h);
   } catch(e) {
