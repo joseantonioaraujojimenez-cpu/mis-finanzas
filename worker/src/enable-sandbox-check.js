@@ -37,7 +37,7 @@ export async function checkSandbox({appId,pem,transport=fetch}){
   const app=await get('/application');if(app.error)return failure(app.error,stage,app.status);
   if(!validateSandboxApplication(app.value,appId))return failure('sandbox_validation_failed');
   stage='aspsps';const banks=await get('/aspsps?country=ES&psu_type=personal&service=AIS');if(banks.error)return failure(banks.error,stage,banks.status);
-  if(!Array.isArray(banks.value?.aspsps))return failure('provider_invalid_response');
+  if(!Array.isArray(banks.value?.aspsps))return failure('provider_invalid_response',stage,200);
   const bbvaAvailable=banks.value.aspsps.some(bank=>bank.country==='ES'&&typeof bank.name==='string'&&bank.name.toUpperCase()==='BBVA');
   return {configured:true,verified:true,bbvaAvailable,reason:bbvaAvailable?'ready':'bbva_not_listed'};
  }catch{return failure('provider_unavailable',stage);}
