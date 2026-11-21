@@ -169,3 +169,29 @@ test('internal recovery flow verifies WebAuthn before replacing credential',()=>
  assert.ok(flow.indexOf('await verifyRecoveryRegistration')<flow.indexOf("await coordinator('/recovery/finalize'"));
  assert.doesNotMatch(worker,/from '\.\/recovery-flow\.js'/);
 });
+
+
+test('recovery flow binds registration challenge to ticket and refuses finalize after failed attestation',async()=>{
+ const {beginRecoveryRegistration,completeRecoveryRegistration}=await import('../src/recovery-flow.js');
+ const calls=[];
+ const coordinator=async(route,payload)=>{
+  calls.push({route,payload});
+  if(route==='/recovery/challenge/create')return {created:true};
+  if(route==='/recovery/challenge/consume')return {challenge:'server-generated-recovery-challenge-123456'};
+  if(route==='/recovery/finalize')return {replaced:true};
+  throw new Error('Unexpected coordinator route');
+ };
+ const options=await beginRecoveryRegistration({ticket:'opaque-ticket',coordinator,rpID:'example.com',rpName:'Mis Finanzas'});
+ assert.equal(typeof options.challenge,'string');
+ assert.equal(calls[0].route,'/recovery/challenge/create');
+ assert.equal(calls[0].payload.ticket,'opaque-ticket');
+ assert.equal(calls[0].payload.challenge,options.challenge);
+ await assert.rejects(()=>completeRecoveryRegistration({ticket:'opaque-ticket',response:{id:'forged'},coordinator,origin:'https://example.com',rpID:'example.com'}));
+ assert.equal(calls.filter(x=>x.route==='/recovery/finalize').length,0,'failed WebAuthn must never finalize recovery');
+});
+
+test('recovery flow refuses to issue options for an invalid or expired ticket',async()=>{
+ const {beginRecoveryRegistration}=await import('../src/recovery-flow.js');
+ await assert.rejects(()=>beginRecoveryRegistration({ticket:'',coordinator:async()=>({created:false}),rpID:'example.com',rpName:'Mis Finanzas'}),TypeError);
+ await assert.rejects(()=>beginRecoveryRegistration({ticket:'expired-ticket',coordinator:async()=>({created:false}),rpID:'example.com',rpName:'Mis Finanzas'}),/expired/);
+});
