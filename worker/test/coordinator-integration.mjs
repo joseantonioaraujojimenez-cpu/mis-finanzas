@@ -96,4 +96,7 @@ check((await op('/recovery/store',{digest})).stored===true,'recovery digest coul
 for(let i=0;i<5;i++)check((await op('/recovery/consume',{digest:wrongDigest})).consumed===false,'incorrect code accepted');
 const blocked=await op('/recovery/consume',{digest});
 check(blocked.consumed===false&&blocked.limited===true,'recovery attempt limit bypassed');
+// Recovery preparation must share the lockout with code consumption.
+const limitedPrepare=await op('/recovery/prepare',{digest});
+check(limitedPrepare.prepared===false&&limitedPrepare.limited===true,'recovery preparation bypassed attempt lockout');
 console.log('Durable Object integration: challenges, enrollment, counters, sessions, rate limits OK');
