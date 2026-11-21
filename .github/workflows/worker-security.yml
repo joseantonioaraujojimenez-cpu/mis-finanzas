@@ -80,3 +80,11 @@ jobs:
           # Unknown and disabled endpoints must not leak caching headers.
           curl -sD /tmp/mis-finanzas-headers.txt -o /dev/null http://127.0.0.1:8787/
           grep -qi '^cache-control: no-store' /tmp/mis-finanzas-headers.txt
+          # Defensive headers must be present on public JSON responses.
+          grep -qi '^x-content-type-options: nosniff' /tmp/mis-finanzas-headers.txt
+          grep -qi '^referrer-policy: no-referrer' /tmp/mis-finanzas-headers.txt
+          grep -qi '^x-frame-options: DENY' /tmp/mis-finanzas-headers.txt
+          grep -qi '^content-security-policy:' /tmp/mis-finanzas-headers.txt
+          # Public root is read-only.
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8787/)
+          test "$STATUS" = "405"
