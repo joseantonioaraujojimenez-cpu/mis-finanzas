@@ -71,3 +71,9 @@ test('expired or mismatched challenges are removed atomically',()=>{
  assert.match(coordinator,/if\(!item\)return null;\s*await tx\.delete\(key\);/);
  assert.match(coordinator,/item\.expires<=Date\.now\(\)/);
 });
+
+test('production config has no placeholder KV namespace',()=>{
+ const config=readFileSync(new URL('../wrangler.jsonc',import.meta.url),'utf8');
+ assert.doesNotMatch(config,/REPLACE_WITH_EXISTING_KV_NAMESPACE_ID/);
+ assert.doesNotMatch(config,/"AUTH_KV"/);
+});
