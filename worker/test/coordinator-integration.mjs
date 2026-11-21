@@ -60,4 +60,8 @@ check((await op('/recovery/consume',{digest:wrongDigest})).consumed===false,'wro
 const recoveryRace=await Promise.all(Array.from({length:8},()=>op('/recovery/consume',{digest})));
 check(recoveryRace.filter(x=>x.consumed).length===1,'recovery code reused concurrently');
 check((await op('/recovery/consume',{digest})).consumed===false,'recovery code replay accepted');
+check((await op('/recovery/store',{digest})).stored===true,'recovery digest could not be reissued after consumption');
+for(let i=0;i<5;i++)check((await op('/recovery/consume',{digest:wrongDigest})).consumed===false,'incorrect code accepted');
+const blocked=await op('/recovery/consume',{digest});
+check(blocked.consumed===false&&blocked.limited===true,'recovery attempt limit bypassed');
 console.log('Durable Object integration: challenges, enrollment, counters, sessions, rate limits OK');
