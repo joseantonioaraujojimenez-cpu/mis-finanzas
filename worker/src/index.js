@@ -11,7 +11,8 @@ const RP_ID = 'joseantonioaraujojimenez-cpu.github.io';
 const RP_NAME = 'Mis Finanzas';
 const json = (value, status = 200, extra = {}) => new Response(JSON.stringify(value), {
   status, headers: { 'Content-Type':'application/json; charset=utf-8', 'Cache-Control':'no-store',
-    'X-Content-Type-Options':'nosniff', ...extra }
+    'X-Content-Type-Options':'nosniff', 'Referrer-Policy':'no-referrer',
+    'X-Frame-Options':'DENY', 'Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'", ...extra }
 });
 const secureEq = (a,b) => {
   if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
