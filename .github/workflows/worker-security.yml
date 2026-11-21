@@ -99,3 +99,12 @@ jobs:
             -H 'Origin: https://attacker.example' \
             http://127.0.0.1:8787/auth/status)
           test "$STATUS" = "403"
+          # Authorized preflight advertises only the expected origin.
+          STATUS=$(curl -sD /tmp/mis-finanzas-cors.txt -o /dev/null -w '%{http_code}' -X OPTIONS \
+            -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' \
+            -H 'Access-Control-Request-Method: POST' \
+            -H 'Access-Control-Request-Headers: content-type,authorization' \
+            http://127.0.0.1:8787/auth/status)
+          test "$STATUS" = "204"
+          grep -qi '^access-control-allow-origin: https://joseantonioaraujojimenez-cpu.github.io' /tmp/mis-finanzas-cors.txt
+          grep -qi '^vary: Origin' /tmp/mis-finanzas-cors.txt
