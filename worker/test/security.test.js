@@ -111,3 +111,9 @@ test('only explicitly listed authentication routes are recognized',()=>{
  assert.match(worker,/if\(!\['\/auth\/register\/options'/);
  assert.match(worker,/url\.pathname\)\)return json\(\{error:'Not found'\},404,h\)/);
 });
+
+test('authentication JSON body is bounded in UTF-8 bytes and must be an object',()=>{
+ assert.match(worker,/new TextEncoder\(\)\.encode\(body\)\.byteLength>16384/);
+ assert.match(worker,/Array\.isArray\(parsed\)/);
+ assert.match(worker,/JSON object required/);
+});
