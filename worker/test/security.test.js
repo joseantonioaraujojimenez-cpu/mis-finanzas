@@ -270,3 +270,19 @@ test('isolated browser page contains no third-party scripts or persistent token 
  assert.match(js,/navigator\.credentials\.create/);
  assert.match(js,/navigator\.credentials\.get/);
 });
+
+
+test('manual deploy is restricted to the isolated branch, target and credential',()=>{
+ const workflow=readFileSync(new URL('../../.github/workflows/deploy-auth-staging.yml',import.meta.url),'utf8');
+ assert.match(workflow,/workflow_dispatch:/);
+ assert.match(workflow,/github\.ref == 'refs\/heads\/feature\/bbva-passkey-security'/);
+ assert.match(workflow,/ref: \$\{\{ github\.sha \}\}/);
+ assert.match(workflow,/persist-credentials: false/);
+ assert.match(workflow,/group: mis-finanzas-faceid-test-deploy/);
+ assert.match(workflow,/cancel-in-progress: false/);
+ assert.match(workflow,/CLOUDFLARE_FACEID_TEST_TOKEN/);
+ assert.doesNotMatch(workflow,/secrets\.CLOUDFLARE_API_TOKEN/);
+ assert.match(workflow,/\bwrangler deploy --config wrangler\.faceid-test\.jsonc/);
+ assert.equal((workflow.match(/\bwrangler deploy\b/g)||[]).length,1);
+ assert.match(workflow,/Verify isolated deployment target/);
+});
