@@ -3,7 +3,7 @@
 // Do not use KV get()+delete() for one-time challenges.
 import { DurableObject } from 'cloudflare:workers';
 import {transitionDemoConsent} from './demo-consent.js';
-import {saveAuthorizationState,consumeAuthorizationState} from './bbva-authorization-state.js';
+import {consumeAuthorizationState} from './bbva-authorization-state.js';
 
 export class PasskeyCoordinator extends DurableObject {
  async fetch(request) {
@@ -16,8 +16,22 @@ export class PasskeyCoordinator extends DurableObject {
   // Internal AIS state operations only. No public Worker route calls these yet.
   // They must not be exposed until the caller is bound to an authenticated owner session.
   if(path==='/bbva/ais/state/save'){
+   // The authenticated owner session must be live at the same atomic commit.
+   // Only a digest is stored with the state, never the bearer token.
+   if(typeof input.token!=='string'||input.token.length<32||input.token.length>256)
+    return Response.json({saved:false},{status:403});
+   const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(input.token))),b=>b.toString(16).padStart(2,'0')).join('');
    try{
-    const saved=await saveAuthorizationState({storage:store,record:input.record,now});
+    const saved=await store.transaction(async tx=>{
+     const session=await tx.get('session:'+input.token),epoch=(await tx.get('session_epoch'))||0;
+     if(!session||session.expires<=Date.now()||session.epoch!==epoch)return false;
+     const record=input.record;
+     if(!record||typeof record.state!=='string'||!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(record.state)||record.consumed!==false||!Number.isFinite(record.expiresAt)||record.expiresAt<=Date.now()||record.expiresAt>Date.now()+600000||record.callback!=='https://mis-finanzas-faceid-test.joseantonioaraujojimenez.workers.dev/bank/callback')return false;
+     const key='bbva:ais:state:'+record.state;
+     if(await tx.get(key))return false;
+     await tx.put(key,{state:record.state,expiresAt:record.expiresAt,callback:record.callback,consumed:false,ownerSessionDigest:digest,ownerEpoch:epoch});
+     return true;
+    });
     return Response.json({saved});
    }catch{return Response.json({saved:false},{status:400});}
   }
