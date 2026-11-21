@@ -58,6 +58,21 @@ check(rateRace.every(x=>x.allowed===false),'concurrent requests bypassed rate li
 check((await op('/session/validate',{token:'not-a-real-token'})).valid===false,'unknown token authenticated');
 check((await op('/session/validate',{token:''})).valid===false,'empty token authenticated');
 check((await op('/session/validate',{token:'x'.repeat(300)})).valid===false,'oversized token authenticated');
+// Recovery must preserve the code until replacement succeeds.
+const replacementDigest='c'.repeat(64);
+check((await op('/recovery/store',{digest:replacementDigest})).stored===true,'replacement digest missing');
+const prepared=await op('/recovery/prepare',{digest:replacementDigest});
+check(prepared.prepared===true&&typeof prepared.ticket==='string','recovery ticket not issued');
+check((await op('/credential/get')).credential.id===winner.id,'preparation changed credential');
+check((await op('/recovery/finalize',{ticket:'invalid',credential:{id:'new-device',publicKey:Array(32).fill(2),counter:0}})).replaced===false,'invalid ticket replaced credential');
+check((await op('/credential/get')).credential.id===winner.id,'invalid finalization changed credential');
+const oldSession=await op('/session/create');
+const replacement={id:'new-device',publicKey:Array(32).fill(2),counter:0,transports:['internal']};
+const finishRace=await Promise.all(Array.from({length:8},()=>op('/recovery/finalize',{ticket:prepared.ticket,credential:replacement})));
+check(finishRace.filter(x=>x.replaced).length===1,'recovery finalized more than once');
+check((await op('/credential/get')).credential.id==='new-device','recovery did not replace credential');
+check((await op('/session/validate',{token:oldSession.token})).valid===false,'recovery failed to revoke prior session');
+check((await op('/recovery/prepare',{digest:replacementDigest})).prepared===false,'recovery code reused after replacement');
 // Recovery digest must be stored once and consumed by only one concurrent request.
 const digest='a'.repeat(64),wrongDigest='b'.repeat(64);
 check((await op('/recovery/store',{digest})).stored===true,'recovery digest not stored');
