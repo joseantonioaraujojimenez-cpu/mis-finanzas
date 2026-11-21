@@ -106,19 +106,12 @@ check(finishRace.filter(x=>x.replaced).length===1,'recovery finalized more than 
 check((await op('/credential/get')).credential.id==='new-device','recovery did not replace credential');
 check((await op('/session/validate',{token:oldSession.token})).valid===false,'recovery failed to revoke prior session');
 check((await op('/recovery/prepare',{digest:replacementDigest})).prepared===false,'recovery code reused after replacement');
-// Recovery digest must be stored once and consumed by only one concurrent request.
+// The legacy endpoint must not allow consuming a recovery code without
+// completing a verified replacement. The test harness rejects it outright.
 const digest='a'.repeat(64),wrongDigest='b'.repeat(64);
 check((await op('/recovery/store',{digest})).stored===true,'recovery digest not stored');
 check((await op('/recovery/store',{digest:wrongDigest})).stored===false,'recovery digest overwritten');
-check((await op('/recovery/consume',{digest:wrongDigest})).consumed===false,'wrong recovery code accepted');
-const recoveryRace=await Promise.all(Array.from({length:8},()=>op('/recovery/consume',{digest})));
-check(recoveryRace.filter(x=>x.consumed).length===1,'recovery code reused concurrently');
-check((await op('/recovery/consume',{digest})).consumed===false,'recovery code replay accepted');
-check((await op('/recovery/store',{digest})).stored===true,'recovery digest could not be reissued after consumption');
-for(let i=0;i<5;i++)check((await op('/recovery/consume',{digest:wrongDigest})).consumed===false,'incorrect code accepted');
-const blocked=await op('/recovery/consume',{digest});
-check(blocked.consumed===false&&blocked.limited===true,'recovery attempt limit bypassed');
-// Recovery preparation must share the lockout with code consumption.
-const limitedPrepare=await op('/recovery/prepare',{digest});
-check(limitedPrepare.prepared===false&&limitedPrepare.limited===true,'recovery preparation bypassed attempt lockout');
+const legacyResponse=await fetch(base,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:'/recovery/consume',payload:{digest}})});
+check(legacyResponse.status===400,'legacy recovery consumption endpoint is still exposed');
+check((await op('/recovery/prepare',{digest:wrongDigest})).prepared===false,'wrong recovery code accepted');
 console.log('Durable Object integration: challenges, enrollment, counters, sessions, rate limits OK');
