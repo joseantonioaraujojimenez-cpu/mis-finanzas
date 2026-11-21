@@ -133,6 +133,29 @@ export class PasskeyCoordinator extends DurableObject {
    });
    return Response.json(result);
   }
+  // Recovery-specific WebAuthn challenge bound to the active recovery ticket.
+  // This is an internal primitive; the Worker must verify the signed response.
+  if(path==='/recovery/challenge/create'){
+   if(typeof input.ticket!=='string'||typeof input.challenge!=='string'||input.challenge.length<16||input.challenge.length>1024)
+    return Response.json({created:false});
+   const created=await store.transaction(async tx=>{
+    const pending=await tx.get('recovery_ticket');
+    if(!pending||pending.ticket!==input.ticket||pending.expires<=Date.now())return false;
+    await tx.put('recovery_challenge',{ticket:input.ticket,challenge:input.challenge,expires:Math.min(pending.expires,Date.now()+300000)});
+    return true;
+   });
+   return Response.json({created});
+  }
+  if(path==='/recovery/challenge/consume'){
+   if(typeof input.ticket!=='string')return Response.json({challenge:null});
+   const challenge=await store.transaction(async tx=>{
+    const pending=await tx.get('recovery_ticket'),item=await tx.get('recovery_challenge');
+    if(!pending||!item||pending.ticket!==input.ticket||item.ticket!==input.ticket||pending.expires<=Date.now()||item.expires<=Date.now())return null;
+    await tx.delete('recovery_challenge');
+    return item.challenge;
+   });
+   return Response.json({challenge});
+  }
   // Internal recovery phase 2: called ONLY after successful WebAuthn verification
   // by the Worker. One transaction replaces the credential, invalidates all
   // existing sessions, and burns the recovery code and ticket together.
@@ -148,6 +171,7 @@ export class PasskeyCoordinator extends DurableObject {
     await tx.put('session_epoch',((await tx.get('session_epoch'))||0)+1);
     await tx.delete('recovery_digest');
     await tx.delete('recovery_ticket');
+    await tx.delete('recovery_challenge');
     await tx.delete('recovery_attempts');
     return true;
    });
