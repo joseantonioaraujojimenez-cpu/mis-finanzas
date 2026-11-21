@@ -3,7 +3,7 @@
 **Estado: preparación documental. No se ha conectado ni desplegado nada.** La web actual no debe modificarse.
 
 ## Qué existe en la rama de desarrollo
-- Worker: `mis-finanzas-bbva` (configurado en `worker/wrangler.jsonc`).
+- Worker de pruebas: `mis-finanzas-auth-staging` (configurado en `worker/wrangler.jsonc`). El Worker existente `mis-finanzas-bbva` es producción y no debe sobrescribirse.
 - Almacenamiento de autenticación: Durable Object SQLite `PasskeyCoordinator`.
 - Único secreto previsto para el alta inicial: `PASSKEY_BOOTSTRAP_SECRET`.
 - Las rutas de registro e inicio de sesión continúan respondiendo HTTP 503 intencionadamente.
