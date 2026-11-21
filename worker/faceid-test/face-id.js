@@ -1,6 +1,7 @@
 'use strict';
 const $=id=>document.getElementById(id);
 let token=null,ready=false,busy=false,expires=0,displayed=false,consentUntil=0;
+let aisFlow=null;
 const show=message=>{$('status').textContent=message;};
 function render(){
  $('register').disabled=!ready||busy||!!token;
@@ -17,8 +18,12 @@ function render(){
  $('dashboard').hidden=!token||!displayed||document.hidden;
  $('sandboxCard').hidden=!token||!displayed||document.hidden;
  $('sandboxCheck').disabled=busy||!token||!displayed;
+ $('aisFlowCard').hidden=!token||!displayed||document.hidden;
+ $('aisFlowStart').disabled=busy||!token||!displayed||!!aisFlow;
+ $('aisFlowReturn').disabled=busy||!token||!displayed||!aisFlow;
+ $('aisFlowCancel').disabled=busy||!token||!displayed||!aisFlow;
 }
-function reset(){token=null;expires=0;displayed=false;consentUntil=0;$('consentAccept').checked=false;for(const id of ['demoIncome','demoExpense','demoBalance','demoCount','demoCategories','demoMoves','sessionTime','syncSummary','sandboxResult'])$(id).replaceChildren();render();}
+function reset(){aisFlow=null;$('aisFlowResult').textContent='Ensayo no iniciado.';token=null;expires=0;displayed=false;consentUntil=0;$('consentAccept').checked=false;for(const id of ['demoIncome','demoExpense','demoBalance','demoCount','demoCategories','demoMoves','sessionTime','syncSummary','sandboxResult'])$(id).replaceChildren();render();}
 const euro=n=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(n);
 function element(tag,text,klass){const e=document.createElement(tag);if(text!==undefined)e.textContent=String(text);if(klass)e.className=klass;return e;}
 function showDemo(data){
@@ -71,6 +76,23 @@ $('consentAccept').onchange=render;
 $('consentGrant').onclick=()=>run(async()=>{if(!$('consentAccept').checked)return;await consentAction('grant');$('consentAccept').checked=false;show('Consentimiento simulado activado. BBVA real sigue desconectado.');});
 $('consentRevoke').onclick=()=>run(async()=>{await consentAction('revoke');$('consentAccept').checked=false;show('Consentimiento simulado revocado.');});
 $('sandboxCheck').onclick=()=>run(async()=>{const session=token;$('sandboxResult').textContent='Verificando aplicación…';try{const result=await api('/auth/sandbox/check',{},session);if(!session||session!==token||Date.now()>=expires)return;const messages={ready:'✅ Sandbox verificado. BBVA España disponible para pruebas.',bbva_not_listed:'Sandbox verificado, pero BBVA España no aparece en el listado.',missing_configuration:'Faltan los secretos de Sandbox en el servidor.',invalid_app_id:'El identificador Sandbox no tiene formato UUID válido.',invalid_private_key:'PEM-01: no se reconocen las líneas BEGIN y END de la clave.',invalid_pem_body:'PEM-02: el contenido de la clave está incompleto o no es Base64 válido.',rsa_import_failed:'PEM-03: el servidor no puede importar el formato criptográfico de la clave.',rsa_sign_failed:'PEM-04: el servidor pudo importar la clave, pero no pudo firmar.',provider_unauthorized:'Enable Banking rechaza la autenticación (401). Comprueba que la clave y el ID pertenecen a la misma aplicación Sandbox.',provider_forbidden:'Enable Banking rechaza el permiso (403). Comprueba que la aplicación Sandbox esté activa.',provider_not_found:'Enable Banking no encuentra la aplicación (404). Comprueba su ID.',provider_rate_limited:'Enable Banking ha limitado las peticiones (429). Inténtalo más tarde.',provider_unavailable:'Enable Banking devolvió un error HTTP.',provider_redirect:'Enable Banking ha respondido con una redirección inesperada.',provider_network_error:'No se pudo establecer la conexión de red con Enable Banking (causa no identificada).',provider_dns_error:'No se pudo resolver el dominio de Enable Banking (DNS).',provider_connection_error:'La conexión con Enable Banking fue rechazada o interrumpida.',provider_tls_error:'No se pudo verificar la conexión segura TLS con Enable Banking.',provider_timeout:'Enable Banking no respondió en 10 segundos.',provider_invalid_response:'Enable Banking ha devuelto una respuesta inesperada.',sandbox_validation_failed:'La aplicación no cumple los requisitos de Sandbox y solo lectura.'};$('sandboxResult').textContent=(messages[result.reason]||'Verificación no disponible.')+(result.stage?' Etapa: '+result.stage+'.':'')+(Number.isInteger(result.httpStatus)?' HTTP '+result.httpStatus+'.':'')+(Array.isArray(result.failedChecks)&&result.failedChecks.length?' Requisitos pendientes: '+result.failedChecks.map(k=>({app_id:'identificador',environment:'entorno Sandbox',active:'aplicación activa',read_only:'permiso AIS de solo lectura',callback:'URL de retorno'}[k]||'configuración')).join(', ')+'.':'')+(result.additionalServices?' Aviso: Enable Banking también tiene otros servicios habilitados; esta prueba solo consulta AIS y no autoriza pagos.':'')+(result.serviceDiagnostic? ' Detalle AIS: '+({additional_services:'AIS está presente, pero hay otros servicios habilitados.',ais_missing:'AIS no está habilitado.',unexpected_format:'La lista de servicios tiene un formato inesperado.'}[result.serviceDiagnostic]||'No disponible'):'');}catch(e){if(session===token)$('sandboxResult').textContent='No se ha podido completar la verificación.';throw e;}});
+// Purely local UI rehearsal. No provider request, bank URL, callback or code exchange.
+$('aisFlowStart').onclick=()=>run(async()=>{
+ const session=token;
+ const status=await api('/auth/status',{},session);
+ if(!status.authenticated||session!==token||Date.now()>=expires)throw Error('Inicia sesión con Face ID.');
+ aisFlow={session,expiresAt:Math.min(expires,Date.now()+120000),state:crypto.randomUUID()};
+ $('aisFlowResult').textContent='Paso 1/2: solicitud simulada creada. En una conexión real se abriría el consentimiento del banco. No se ha contactado con BBVA.';
+});
+$('aisFlowReturn').onclick=()=>run(async()=>{
+ const flow=aisFlow;
+ if(!flow||flow.session!==token||Date.now()>=flow.expiresAt){aisFlow=null;throw Error('Ensayo caducado. Vuelve a empezar.');}
+ const status=await api('/auth/status',{},token);
+ if(!status.authenticated){aisFlow=null;throw Error('La sesión Face ID ya no está activa.');}
+ aisFlow=null;
+ $('aisFlowResult').textContent='Paso 2/2: retorno simulado completado. No se ha intercambiado ningún código ni conectado ninguna cuenta.';
+});
+$('aisFlowCancel').onclick=()=>{aisFlow=null;$('aisFlowResult').textContent='Ensayo cancelado. No se ha enviado información bancaria.';render();};
 $('sync').onclick=()=>run(async()=>{try{const data=await consentAction('sync');showDemo(data);show('Movimientos simulados actualizados sin duplicados.');}catch(e){try{await consentAction('status');}catch{reset();}throw e;}});
 $('logout').onclick=()=>run(async()=>{const session=token;reset();await api('/auth/logout',{},session);show('Sesión cerrada.');});
 setInterval(()=>{if(token&&Date.now()>=expires){reset();show('Sesión caducada.');}else if(token&&displayed){const seconds=Math.max(0,Math.ceil((expires-Date.now())/1000));$('sessionTime').textContent=`Sesión restante: ${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;if(consentUntil&&consentUntil<=Date.now()){consentUntil=0;render();}}},1000);
