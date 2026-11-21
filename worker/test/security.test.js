@@ -65,3 +65,9 @@ test('logout revokes the server-side session rather than only hiding the UI',()=
  assert.match(coordinator,/path==='\/session\/revoke'/);
  assert.match(coordinator,/await store\.delete\('session:'\+input\.token\)/);
 });
+
+test('expired or mismatched challenges are removed atomically',()=>{
+ const coordinator=readFileSync(new URL('../src/passkey-coordinator.js',import.meta.url),'utf8');
+ assert.match(coordinator,/if\(!item\)return null;\s*await tx\.delete\(key\);/);
+ assert.match(coordinator,/item\.expires<=Date\.now\(\)/);
+});
