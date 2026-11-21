@@ -4,6 +4,8 @@
   "compatibility_date": "2026-11-01",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "durable_objects": { "bindings": [{ "name": "PASSKEY_COORDINATOR", "class_name": "PasskeyCoordinator" }] },
+  "migrations": [{ "tag": "v1-passkey-coordinator", "new_sqlite_classes": ["PasskeyCoordinator"] }],
   "kv_namespaces": [
     { "binding": "AUTH_KV", "id": "REPLACE_WITH_EXISTING_KV_NAMESPACE_ID" }
   ]
