@@ -89,28 +89,6 @@ export class PasskeyCoordinator extends DurableObject {
    });
    return Response.json({stored});
   }
-  if(path==='/recovery/consume'){
-   if(typeof input.digest!=='string'||!/^[a-f0-9]{64}$/.test(input.digest))
-    return Response.json({consumed:false});
-   const result=await store.transaction(async tx=>{
-    const key='recovery_digest', rateKey='recovery_attempts';
-    const previous=await tx.get(rateKey);
-    const rate=previous&&previous.until>Date.now()?previous:{count:0,until:Date.now()+900000};
-    if(rate.count>=5)return {consumed:false,limited:true};
-    rate.count++;
-    await tx.put(rateKey,rate);
-    const current=await tx.get(key);
-    if(!current)return {consumed:false,limited:false};
-    // Compare every digest character; never short-circuit on mismatch.
-    let diff=0;
-    for(let i=0;i<64;i++)diff|=current.digest.charCodeAt(i)^input.digest.charCodeAt(i);
-    if(diff!==0)return {consumed:false,limited:false};
-    await tx.delete(key);
-    await tx.delete(rateKey);
-    return {consumed:true,limited:false};
-   });
-   return Response.json(result);
-  }
   // Internal recovery phase 1: validate the code without consuming it.
   // A short-lived random ticket binds the eventual replacement to this attempt.
   if(path==='/recovery/prepare'){
