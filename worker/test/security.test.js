@@ -21,3 +21,15 @@ test('web app uses configured github pages origin as WebAuthn RP',()=>{
  assert.match(worker,/const RP_ID = 'joseantonioaraujojimenez-cpu.github.io'/);
  assert.match(worker,/const ORIGIN = 'https:\/\/joseantonioaraujojimenez-cpu.github.io'/);
 });
+
+test('Durable Object has transactional challenge consumption and first enrollment',()=>{
+ const coordinator=readFileSync(new URL('../src/passkey-coordinator.js',import.meta.url),'utf8');
+ assert.match(coordinator,/store\.transaction\(async tx/);
+ assert.match(coordinator,/await tx\.delete\(key\)/);
+ assert.match(coordinator,/if\(await tx\.get\('owner_credential'\)\)return false/);
+});
+test('Cloudflare declares Durable Object and SQLite migration',()=>{
+ const config=readFileSync(new URL('../wrangler.jsonc',import.meta.url),'utf8');
+ assert.match(config,/"PASSKEY_COORDINATOR"/);
+ assert.match(config,/"new_sqlite_classes"/);
+});
