@@ -43,10 +43,10 @@ export default {
   if(request.method==='OPTIONS')return new Response(null,{status:origin===ORIGIN?204:403,headers:h});
   if(url.pathname==='/')return json({service:'Mis Finanzas',bank_connected:false,passkeys:'backend available'},200,h);
   if(!url.pathname.startsWith('/auth/'))return json({error:'Not found'},404,h);
-  // FAIL CLOSED: KV cannot atomically consume WebAuthn challenges or enforce single enrollment.
-  // The bank integration must remain inaccessible until an atomic Durable Object implementation is reviewed.
+  // FAIL CLOSED: the Durable Object flow is wired but not yet integration-tested,
+  // rate-limited or audited. Do not activate banking or registration.
   if(['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify'].includes(url.pathname))
-    return json({error:'Passkey enrollment/login disabled pending atomic storage implementation'},503,h);
+    return json({error:'Passkey enrollment/login disabled pending integration tests and security review'},503,h);
   if(origin!==ORIGIN)return json({error:'Forbidden origin'},403,h);
   if(!env.PASSKEY_COORDINATOR)return json({error:'Authentication storage unavailable'},503,h);
   if(request.method!=='POST')return json({error:'Method not allowed'},405,h);
