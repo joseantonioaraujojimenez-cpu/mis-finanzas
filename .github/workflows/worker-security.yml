@@ -56,6 +56,14 @@ jobs:
           done
           STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8787/api/transactions)
           test "$STATUS" = "404"
+          # Internal recovery primitives must never be exposed as public endpoints.
+          for ROUTE in store consume prepare challenge/create challenge/consume finalize; do
+            STATUS=$(curl -s -o /dev/null -w '%{http_code}' \\
+              -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' \\
+              -H 'Content-Type: application/json' \\
+              -d '{}' "http://127.0.0.1:8787/recovery/$ROUTE")
+            test "$STATUS" = "404"
+          done
           # Untrusted origins must not reach authentication.
           STATUS=$(curl -s -o /dev/null -w '%{http_code}' \
             -H 'Origin: https://example.org' \
