@@ -27,3 +27,17 @@ test('malformed JSON from Sandbox application reports application stage',async()
  const result=await checkSandbox({appId,pem,transport:async()=>({ok:true,status:200,json:async()=>{throw Error('invalid JSON');}})});
  assert.deepEqual(result,{configured:true,verified:false,bbvaAvailable:false,reason:'provider_invalid_response',stage:'application',httpStatus:200});
 });
+
+test('Sandbox transport failures report only safe network categories',async()=>{
+ for(const [code,reason] of [
+  ['ENOTFOUND','provider_dns_error'],
+  ['ECONNRESET','provider_connection_error'],
+  ['CERT_HAS_EXPIRED','provider_tls_error'],
+  ['UNKNOWN_CODE','provider_network_error']
+ ]){
+  const transport=async()=>{const error=new Error('Sensitive transport detail');error.cause={code};throw error;};
+  const result=await checkSandbox({appId,pem,transport});
+  assert.deepEqual(result,{configured:true,verified:false,bbvaAvailable:false,reason,stage:'application'});
+  assert.doesNotMatch(JSON.stringify(result),/Sensitive|PRIVATE KEY|Bearer/);
+ }
+});
