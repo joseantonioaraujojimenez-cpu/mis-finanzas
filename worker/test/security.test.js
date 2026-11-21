@@ -77,3 +77,9 @@ test('production config has no placeholder KV namespace',()=>{
  assert.doesNotMatch(config,/REPLACE_WITH_EXISTING_KV_NAMESPACE_ID/);
  assert.doesNotMatch(config,/"AUTH_KV"/);
 });
+
+test('expired sessions are removed and never treated as authenticated',()=>{
+ const coordinator=readFileSync(new URL('../src/passkey-coordinator.js',import.meta.url),'utf8');
+ assert.match(coordinator,/record&&record\.expires<=now/);
+ assert.match(coordinator,/await store\.delete\(key\);return Response\.json\(\{valid:false\}\)/);
+});
