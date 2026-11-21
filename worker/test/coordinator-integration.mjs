@@ -24,13 +24,16 @@ for(const invalid of [{id:'',publicKey:Array(32).fill(1),counter:0},{id:'bad',pu
  check(rejected.status===400,'malformed credential accepted');
 }
 check((await op('/credential/get')).credential===null,'invalid credential stored');
-check((await op('/credential/enroll',{credential:{id:'test-id',publicKey:Array(32).fill(1),counter:1}})).enrolled===true,'first enrollment failed');
+const enrollmentRace=await Promise.all(Array.from({length:8},(_,i)=>op('/credential/enroll',{credential:{id:i===0?'test-id':'attacker-'+i,publicKey:Array(32).fill(1),counter:1}})));
+check(enrollmentRace.filter(x=>x.enrolled).length===1,'concurrent enrollment accepted more than one credential');
+const winner=(await op('/credential/get')).credential;
+check(winner && typeof winner.id==='string','enrollment winner missing');
 check((await op('/credential/enroll',{credential:{id:'attacker-id',publicKey:Array(32).fill(3),counter:1}})).enrolled===false,'second enrollment accepted');
-check((await op('/credential/get')).credential.id==='test-id','original credential overwritten');
-check((await op('/credential/counter',{id:'test-id',counter:2})).updated===true,'counter advance rejected');
-check((await op('/credential/counter',{id:'test-id',counter:2})).updated===false,'counter replay accepted');
+check((await op('/credential/get')).credential.id===winner.id,'original credential overwritten');
+check((await op('/credential/counter',{id:winner.id,counter:2})).updated===true,'counter advance rejected');
+check((await op('/credential/counter',{id:winner.id,counter:2})).updated===false,'counter replay accepted');
 check((await op('/credential/counter',{id:'attacker-id',counter:3})).updated===false,'wrong credential counter accepted');
-const counterRace=await Promise.all(Array.from({length:8},()=>op('/credential/counter',{id:'test-id',counter:3})));
+const counterRace=await Promise.all(Array.from({length:8},()=>op('/credential/counter',{id:winner.id,counter:3})));
 check(counterRace.filter(x=>x.updated).length===1,'concurrent counter replay accepted');
 const session=await op('/session/create');
 check(typeof session.token==='string'&&session.token.length>=64,'session token missing');
