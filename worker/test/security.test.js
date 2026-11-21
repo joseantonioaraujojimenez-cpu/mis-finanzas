@@ -195,3 +195,12 @@ test('recovery flow refuses to issue options for an invalid or expired ticket',a
  await assert.rejects(()=>beginRecoveryRegistration({ticket:'',coordinator:async()=>({created:false}),rpID:'example.com',rpName:'Mis Finanzas'}),TypeError);
  await assert.rejects(()=>beginRecoveryRegistration({ticket:'expired-ticket',coordinator:async()=>({created:false}),rpID:'example.com',rpName:'Mis Finanzas'}),/expired/);
 });
+
+
+test('recovery primitives remain unreachable from public Worker routes',()=>{
+ assert.match(worker,/if\(!url\.pathname\.startsWith\('\/auth\/'\)\)return json\(\{error:'Not found'\},404,h\)/);
+ assert.doesNotMatch(worker,/\/recovery\/(?:store|consume|prepare|challenge\/create|challenge\/consume|finalize)/);
+ assert.doesNotMatch(worker,/from '\.\/recovery-flow\.js'/);
+ assert.doesNotMatch(worker,/from '\.\/recovery-code\.js'/);
+ assert.match(worker,/disabled pending integration tests and security review/);
+});
