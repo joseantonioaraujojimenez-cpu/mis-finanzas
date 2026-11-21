@@ -6,6 +6,10 @@ on:
     paths:
       - 'worker/**'
       - 'passkey-test.html'
+# Only test the newest commit on a branch; older runs become obsolete.
+concurrency:
+  group: worker-security-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 jobs:
   security:
     runs-on: ubuntu-latest
