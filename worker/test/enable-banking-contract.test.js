@@ -25,3 +25,19 @@ test('session revocation is separate from account reads; no payment functions ex
  assert.deepEqual(client.revokeSessionSpec(id),{method:'DELETE',path:'/sessions/'+id});assert.equal(client.sessionStatusSpec(id).method,'GET');
  assert.equal(Object.keys(client).some(name=>/payment|transfer/i.test(name)),false);
 });
+
+test('BBVA authorization request cannot select payment services or arbitrary destinations',()=>{
+ const request=client.authorizationSpec({state:id,now,validUntil:now+3600000});
+ assert.equal(request.method,'POST');
+ assert.equal(request.path,'/auth');
+ assert.equal(request.body.redirect_url,client.PLANNED_CALLBACK);
+ assert.deepEqual(request.body.aspsp,{name:'BBVA',country:'ES'});
+ assert.equal(Object.keys(request.body).some(key=>/payment|creditor|iban|amount|transfer/i.test(key)),false);
+ assert.equal(Object.keys(client).some(key=>/initiatePayment|createPayment|transferFunds/i.test(key)),false);
+});
+test('authorization callback rejects a mismatched, missing or expired state',()=>{
+ const base={code:'sandbox-code',state:id,expectedState:id,expires:now+60000,now};
+ for(const invalid of [{...base,state:other},{...base,expectedState:other},{...base,state:undefined},{...base,expires:now},{...base,code:''}]){
+  assert.throws(()=>client.exchangeSpec(invalid));
+ }
+});
