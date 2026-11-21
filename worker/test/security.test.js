@@ -83,3 +83,11 @@ test('expired sessions are removed and never treated as authenticated',()=>{
  assert.match(coordinator,/record&&record\.expires<=now/);
  assert.match(coordinator,/await store\.delete\(key\);return Response\.json\(\{valid:false\}\)/);
 });
+
+test('coordinator bounds untrusted challenge, flow and session token sizes',()=>{
+ const coordinator=readFileSync(new URL('../src/passkey-coordinator.js',import.meta.url),'utf8');
+ assert.match(coordinator,/input\.challenge\.length<16/);
+ assert.match(coordinator,/input\.challenge\.length>1024/);
+ assert.match(coordinator,/input\.id\.length>128/);
+ assert.match(coordinator,/input\.token\.length>256/);
+});
