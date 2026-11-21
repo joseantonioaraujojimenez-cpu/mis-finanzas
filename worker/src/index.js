@@ -35,8 +35,10 @@ const isAuthorized = async (req,env) => {
 };
 const readBody = async req => {
   if (Number(req.headers.get('content-length')||0)>16384) throw Error('Body too large');
-  const body=await req.text(); if(body.length>16384)throw Error('Body too large');
-  return JSON.parse(body);
+  const body=await req.text(); if(new TextEncoder().encode(body).byteLength>16384)throw Error('Body too large');
+  const parsed=JSON.parse(body);
+  if(!parsed || typeof parsed!=='object' || Array.isArray(parsed))throw Error('JSON object required');
+  return parsed;
 };
 export default {
  async fetch(request,env) {
