@@ -61,6 +61,7 @@ check((await op('/session/validate',{token:'x'.repeat(300)})).valid===false,'ove
 // Recovery must preserve the code until replacement succeeds.
 const replacementDigest='c'.repeat(64);
 check((await op('/recovery/store',{digest:replacementDigest})).stored===true,'replacement digest missing');
+check((await op('/recovery/prepare',{digest:'d'.repeat(64)})).prepared===false,'incorrect recovery code prepared');
 const prepared=await op('/recovery/prepare',{digest:replacementDigest});
 check(prepared.prepared===true&&typeof prepared.ticket==='string','recovery ticket not issued');
 check((await op('/credential/get')).credential.id===winner.id,'preparation changed credential');
