@@ -40,6 +40,12 @@ check(typeof session.token==='string'&&session.token.length>=64,'session token m
 check((await op('/session/validate',{token:session.token})).valid===true,'session not valid');
 check((await op('/session/revoke',{token:session.token})).revoked===true,'session not revoked');
 check((await op('/session/validate',{token:session.token})).valid===false,'revoked session accepted');
+const older=await op('/session/create');
+check((await op('/session/validate',{token:older.token})).valid===true,'pre-revocation session invalid');
+check((await op('/session/revoke-all')).revokedAll===true,'global session revocation failed');
+check((await op('/session/validate',{token:older.token})).valid===false,'old session survived global revocation');
+const newer=await op('/session/create');
+check((await op('/session/validate',{token:newer.token})).valid===true,'new session rejected after global revocation');
 for(let i=0;i<5;i++)check((await op('/rate/check',{action:'register'})).allowed===true,'registration limit too early');
 check((await op('/rate/check',{action:'register'})).allowed===false,'registration limit not enforced');
 for(let i=0;i<12;i++)check((await op('/rate/check',{action:'login'})).allowed===true,'login limit too early');
