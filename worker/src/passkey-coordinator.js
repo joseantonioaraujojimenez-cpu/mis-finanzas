@@ -31,14 +31,14 @@ export class PasskeyCoordinator extends DurableObject {
    return Response.json({allowed});
   }
   if(path==='/challenge/create'){
-   if(!['register','login'].includes(input.kind) || typeof input.challenge!=='string')
+   if(!['register','login'].includes(input.kind) || typeof input.challenge!=='string' || input.challenge.length<16 || input.challenge.length>1024)
     return Response.json({error:'Invalid challenge'},{status:400});
    const id=crypto.randomUUID();
    await store.put('challenge:'+id,{kind:input.kind,challenge:input.challenge,expires:now+300000});
    return Response.json({id});
   }
   if(path==='/challenge/consume'){
-   if(typeof input.id!=='string'||!['register','login'].includes(input.kind))
+   if(typeof input.id!=='string'||input.id.length>128||!['register','login'].includes(input.kind))
     return Response.json({error:'Invalid request'},{status:400});
    const result=await store.transaction(async tx=>{
     const key='challenge:'+input.id;
@@ -88,7 +88,7 @@ export class PasskeyCoordinator extends DurableObject {
    return Response.json({revoked:true});
   }
   if(path==='/session/validate'){
-   if(typeof input.token!=='string')return Response.json({valid:false});
+   if(typeof input.token!=='string'||input.token.length>256)return Response.json({valid:false});
    const key='session:'+input.token;
    const record=await store.get(key);
    if(record&&record.expires<=now){await store.delete(key);return Response.json({valid:false});}
