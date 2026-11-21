@@ -19,7 +19,7 @@ const b=await op('/challenge/create',{kind:'register',challenge});
 check((await op('/challenge/consume',{kind:'login',id:b.id})).challenge===null,'wrong challenge kind accepted');
 check((await op('/challenge/consume',{kind:'register',id:b.id})).challenge===null,'wrong kind did not consume');
 check((await op('/credential/get')).credential===null,'credential already exists in isolated test storage');
-for(const invalid of [{id:'',publicKey:Array(32).fill(1),counter:0},{id:'bad',publicKey:[1,2],counter:0},{id:'bad',publicKey:Array(32).fill(256),counter:0},{id:'bad',publicKey:Array(32).fill(1),counter:-1}]){
+for(const invalid of [{id:'',publicKey:Array(32).fill(1),counter:0},{id:'bad',publicKey:[1,2],counter:0},{id:'bad',publicKey:Array(32).fill(256),counter:0},{id:'bad',publicKey:Array(32).fill(1),counter:-1},{id:'bad',publicKey:Array(32).fill(1),counter:0,transports:['untrusted']},{id:'bad',publicKey:Array(32).fill(1),counter:0,transports:'internal'}]){
  const rejected=await fetch(base,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:'/credential/enroll',payload:{credential:invalid}})});
  check(rejected.status===400,'malformed credential accepted');
 }
