@@ -128,6 +128,8 @@ export class PasskeyCoordinator extends DurableObject {
     for(let i=0;i<64;i++)diff|=current.digest.charCodeAt(i)^input.digest.charCodeAt(i);
     if(diff!==0)return {prepared:false,limited:false};
     const ticket=crypto.randomUUID()+crypto.randomUUID();
+    await tx.delete('recovery_challenge');
+    await tx.delete('recovery_challenge_consumed');
     await tx.put('recovery_ticket',{ticket,expires:Date.now()+300000,digest:current.digest});
     return {prepared:true,limited:false,ticket};
    });
@@ -141,6 +143,7 @@ export class PasskeyCoordinator extends DurableObject {
    const created=await store.transaction(async tx=>{
     const pending=await tx.get('recovery_ticket');
     if(!pending||pending.ticket!==input.ticket||pending.expires<=Date.now())return false;
+    await tx.delete('recovery_challenge_consumed');
     await tx.put('recovery_challenge',{ticket:input.ticket,challenge:input.challenge,expires:Math.min(pending.expires,Date.now()+300000)});
     return true;
    });
@@ -152,6 +155,7 @@ export class PasskeyCoordinator extends DurableObject {
     const pending=await tx.get('recovery_ticket'),item=await tx.get('recovery_challenge');
     if(!pending||!item||pending.ticket!==input.ticket||item.ticket!==input.ticket||pending.expires<=Date.now()||item.expires<=Date.now())return null;
     await tx.delete('recovery_challenge');
+    await tx.put('recovery_challenge_consumed',{ticket:input.ticket,expires:item.expires});
     return item.challenge;
    });
    return Response.json({challenge});
@@ -166,12 +170,14 @@ export class PasskeyCoordinator extends DurableObject {
    const replaced=await store.transaction(async tx=>{
     const pending=await tx.get('recovery_ticket');
     const current=await tx.get('recovery_digest');
-    if(!pending||!current||pending.expires<=Date.now()||pending.ticket!==input.ticket||pending.digest!==current.digest)return false;
+    const consumed=await tx.get('recovery_challenge_consumed');
+    if(!pending||!current||!consumed||pending.expires<=Date.now()||consumed.expires<=Date.now()||consumed.ticket!==input.ticket||pending.ticket!==input.ticket||pending.digest!==current.digest)return false;
     await tx.put('owner_credential',c);
     await tx.put('session_epoch',((await tx.get('session_epoch'))||0)+1);
     await tx.delete('recovery_digest');
     await tx.delete('recovery_ticket');
     await tx.delete('recovery_challenge');
+    await tx.delete('recovery_challenge_consumed');
     await tx.delete('recovery_attempts');
     return true;
    });
