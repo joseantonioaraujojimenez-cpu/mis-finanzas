@@ -47,6 +47,7 @@ export default {
     ? json({service:'Mis Finanzas',bank_connected:false,passkeys:'disabled pending review'},200,h)
     : json({error:'Method not allowed'},405,h);
   if(!url.pathname.startsWith('/auth/'))return json({error:'Not found'},404,h);
+  if(!['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify','/auth/status','/auth/logout'].includes(url.pathname))return json({error:'Not found'},404,h);
   // FAIL CLOSED: WebAuthn integration and recovery have not been audited or tested
   // with a real authenticator. Banking and passkey enrollment remain disabled.
   if(['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify'].includes(url.pathname))
