@@ -37,3 +37,19 @@ test('offline callback refuses unconsumed or expired state before transport',asy
  await assert.rejects(exchangeMockableCallback({...base,record:{...base.record,consumed:true},now:now+600000}));
  assert.equal(calls,0);
 });
+
+test('offline transport rejects redirects, non-JSON responses and oversized session identifiers',async()=>{
+ const badResponses=[
+  {ok:true,status:302,json:async()=>({url:'https://bank.example/authorize'})},
+  {ok:true,status:200,headers:{get:()=> 'text/html'},json:async()=>({url:'https://bank.example/authorize'})}
+ ];
+ for(const response of badResponses){
+  await assert.rejects(requestMockableAuthorization({...options,transport:async()=>response}));
+ }
+ const record={state,expiresAt:now+600000,consumed:true};
+ await assert.rejects(exchangeMockableCallback({
+  callbackUrl:PLANNED_CALLBACK+'?state='+state+'&code=mock',
+  record,now:now+1000,jwt:'mock-jwt',
+  transport:async()=>({ok:true,status:200,json:async()=>({session_id:'x'.repeat(257)})})
+ }));
+});
