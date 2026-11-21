@@ -3,6 +3,12 @@
 // This module is not wired to any public Worker route.
 import {prepareAuthorization,verifyCallback} from './bbva-authorization-preflight.js';
 const API='https://api.enablebanking.com';
+function safeResponse(response,label){
+ if(!response||response.ok!==true||response.status!==200||typeof response.json!=='function')throw Error(label+' rejected');
+ const type=response.headers?.get?.('content-type');
+ if(type!==undefined&&type!==null&&!/^application\/json(?:;|$)/i.test(type))throw Error(label+' returned unexpected content');
+ return response;
+}
 export async function requestMockableAuthorization({state,now,validUntil,transport,jwt}){
  if(typeof transport!=='function')throw Error('Authorization transport disabled');
  if(typeof jwt!=='string'||!jwt)throw Error('Missing server authorization');
@@ -13,11 +19,11 @@ export async function requestMockableAuthorization({state,now,validUntil,transpo
   body:JSON.stringify(request.body),
   redirect:'manual'
  });
- if(!response||!response.ok||response.status>=300)throw Error('Authorization provider unavailable');
+ safeResponse(response,'Authorization provider');
  const result=await response.json();
  if(!result||typeof result.url!=='string')throw Error('Provider authorization URL missing');
  const target=new URL(result.url);
- if(target.protocol!=='https:'||target.username||target.password||target.hash||target.href.length>4096)throw Error('Unsafe provider authorization URL');
+ if(target.protocol!=='https:'||target.username||target.password||target.hash||target.href.length>4096||!target.hostname.includes('.'))throw Error('Unsafe provider authorization URL');
  return {authorizationUrl:target.href,record};
 }
 export async function exchangeMockableCallback({callbackUrl,record,now,transport,jwt}){
@@ -32,8 +38,8 @@ export async function exchangeMockableCallback({callbackUrl,record,now,transport
   body:JSON.stringify(spec.body),
   redirect:'manual'
  });
- if(!response||!response.ok||response.status>=300)throw Error('Session exchange rejected');
+ safeResponse(response,'Session exchange');
  const result=await response.json();
- if(!result||typeof result.session_id!=='string'||!result.session_id)throw Error('Invalid provider session');
+ if(!result||typeof result.session_id!=='string'||!result.session_id||result.session_id.length>256)throw Error('Invalid provider session');
  return {sessionId:result.session_id};
 }
