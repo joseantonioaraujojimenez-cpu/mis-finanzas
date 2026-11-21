@@ -11,6 +11,9 @@ export class PasskeyCoordinator extends DurableObject {
   try{input=await request.json()}catch{return Response.json({error:'Invalid JSON'},{status:400})}
   const store=this.ctx.storage;
   const now=Date.now();
+  if(path==='/health/check'){
+   return Response.json({ok:true});
+  }
   if(path==='/rate/check'){
    const action=input.action;
    if(!['register','login'].includes(action))return Response.json({error:'Invalid action'},{status:400});
