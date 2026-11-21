@@ -13,12 +13,14 @@ test('AIS state is saved once and consumed once',async()=>{
  assert.equal(await saveAuthorizationState({storage:s,record,now}),false);
  assert.equal((await consumeAuthorizationState({storage:s,state,now:now+1000})).state,state);
  assert.equal(await consumeAuthorizationState({storage:s,state,now:now+1001}),null);
+ assert.equal(await saveAuthorizationState({storage:s,record,now}),false);
 });
 test('expired AIS state is burned and cannot be replayed',async()=>{
  const s=storage(),{record}=prepareAuthorization({state,now,validUntil:now+3600000});
  await saveAuthorizationState({storage:s,record,now});
  assert.equal(await consumeAuthorizationState({storage:s,state,now:record.expiresAt}),null);
  assert.equal(await consumeAuthorizationState({storage:s,state,now:now+1}),null);
+ assert.equal(await saveAuthorizationState({storage:s,record,now}),false);
 });
 test('state helpers reject nontransactional stores, invalid callbacks and invalid identifiers',async()=>{
  const {record}=prepareAuthorization({state,now,validUntil:now+3600000});
