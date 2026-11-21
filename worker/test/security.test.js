@@ -213,3 +213,19 @@ test('staging Worker name cannot overwrite the existing production Worker',()=>{
  assert.match(config,/"name":\s*"mis-finanzas-auth-staging"/);
  assert.doesNotMatch(config,/"name":\s*"mis-finanzas-bbva"/);
 });
+
+test('recovery replacement requires a consumed challenge for the same active ticket',()=>{
+ const coordinator=readFileSync(new URL('../src/passkey-coordinator.js',import.meta.url),'utf8');
+ assert.match(coordinator,/const consumed=await tx\.get\('recovery_challenge_consumed'\)/);
+ assert.match(coordinator,/!consumed\|\|pending\.expires<=Date\.now\(\)/);
+ assert.match(coordinator,/consumed\.ticket!==input\.ticket/);
+ assert.match(coordinator,/await tx\.delete\('recovery_challenge_consumed'\)/);
+ assert.match(coordinator,/if\(await tx\.get\('recovery_challenge_consumed'\)\)return false/);
+});
+
+test('session creation, validation and global revocation use atomic transactions',()=>{
+ const coordinator=readFileSync(new URL('../src/passkey-coordinator.js',import.meta.url),'utf8');
+ assert.match(coordinator,/path==='\/session\/create'[\s\S]*?await store\.transaction\(async tx/);
+ assert.match(coordinator,/path==='\/session\/validate'[\s\S]*?const valid=await store\.transaction\(async tx/);
+ assert.match(coordinator,/path==='\/session\/revoke-all'[\s\S]*?await store\.transaction\(async tx/);
+});
