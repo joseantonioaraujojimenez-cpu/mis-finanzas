@@ -52,3 +52,8 @@ test('worker requires JSON and exact origin for authentication',()=>{
  assert.match(worker,/application\/json/);
  assert.match(worker,/JSON required/);
 });
+
+test('authenticator counter cannot decrease or reset to zero',()=>{
+ const coordinator=readFileSync(new URL('../src/passkey-coordinator.js',import.meta.url),'utf8');
+ assert.match(coordinator,/c\.counter>0&&input\.counter<=c\.counter/);
+});
