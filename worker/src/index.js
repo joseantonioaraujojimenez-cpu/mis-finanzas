@@ -42,7 +42,9 @@ export default {
   const url=new URL(request.url), origin=request.headers.get('Origin'), h=cors(origin);
   if(request.method==='OPTIONS')return new Response(null,{status:origin===ORIGIN?204:403,headers:h});
   if(request.method!=='GET' && request.method!=='POST')return json({error:'Method not allowed'},405,h);
-  if(url.pathname==='/')return json({service:'Mis Finanzas',bank_connected:false,passkeys:'backend available'},200,h);
+  if(url.pathname==='/')return request.method==='GET'
+    ? json({service:'Mis Finanzas',bank_connected:false,passkeys:'disabled pending review'},200,h)
+    : json({error:'Method not allowed'},405,h);
   if(!url.pathname.startsWith('/auth/'))return json({error:'Not found'},404,h);
   // FAIL CLOSED: WebAuthn integration and recovery have not been audited or tested
   // with a real authenticator. Banking and passkey enrollment remain disabled.
