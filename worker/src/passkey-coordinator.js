@@ -111,6 +111,48 @@ export class PasskeyCoordinator extends DurableObject {
    });
    return Response.json(result);
   }
+  // Internal recovery phase 1: validate the code without consuming it.
+  // A short-lived random ticket binds the eventual replacement to this attempt.
+  if(path==='/recovery/prepare'){
+   if(typeof input.digest!=='string'||!/^[a-f0-9]{64}$/.test(input.digest))
+    return Response.json({prepared:false,limited:false});
+   const result=await store.transaction(async tx=>{
+    const rateKey='recovery_attempts', previous=await tx.get(rateKey);
+    const rate=previous&&previous.until>Date.now()?previous:{count:0,until:Date.now()+900000};
+    if(rate.count>=5)return {prepared:false,limited:true};
+    rate.count++;
+    await tx.put(rateKey,rate);
+    const current=await tx.get('recovery_digest');
+    if(!current)return {prepared:false,limited:false};
+    let diff=0;
+    for(let i=0;i<64;i++)diff|=current.digest.charCodeAt(i)^input.digest.charCodeAt(i);
+    if(diff!==0)return {prepared:false,limited:false};
+    const ticket=crypto.randomUUID()+crypto.randomUUID();
+    await tx.put('recovery_ticket',{ticket,expires:Date.now()+300000,digest:current.digest});
+    return {prepared:true,limited:false,ticket};
+   });
+   return Response.json(result);
+  }
+  // Internal recovery phase 2: called ONLY after successful WebAuthn verification
+  // by the Worker. One transaction replaces the credential, invalidates all
+  // existing sessions, and burns the recovery code and ticket together.
+  if(path==='/recovery/finalize'){
+   const c=input.credential;
+   if(typeof input.ticket!=='string'||input.ticket.length!==72||!c||typeof c.id!=='string'||c.id.length<1||c.id.length>1024||!Array.isArray(c.publicKey)||c.publicKey.length<32||c.publicKey.length>4096||!c.publicKey.every(x=>Number.isInteger(x)&&x>=0&&x<=255)||!Number.isSafeInteger(c.counter)||c.counter<0||(c.transports!==undefined&&(!Array.isArray(c.transports)||c.transports.length>8||!c.transports.every(x=>typeof x==='string'&&['ble','hybrid','internal','nfc','usb','smart-card'].includes(x)))))
+    return Response.json({replaced:false});
+   const replaced=await store.transaction(async tx=>{
+    const pending=await tx.get('recovery_ticket');
+    const current=await tx.get('recovery_digest');
+    if(!pending||!current||pending.expires<=Date.now()||pending.ticket!==input.ticket||pending.digest!==current.digest)return false;
+    await tx.put('owner_credential',c);
+    await tx.put('session_epoch',((await tx.get('session_epoch'))||0)+1);
+    await tx.delete('recovery_digest');
+    await tx.delete('recovery_ticket');
+    await tx.delete('recovery_attempts');
+    return true;
+   });
+   return Response.json({replaced});
+  }
   if(path==='/session/create'){
    const token=crypto.randomUUID()+crypto.randomUUID();
    const epoch=(await store.get('session_epoch'))||0;
