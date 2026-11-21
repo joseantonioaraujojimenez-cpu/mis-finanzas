@@ -42,6 +42,8 @@ Si hay un error, anotar el mensaje visible, versión de iOS, navegador y en qué
 
 ## Límites antes de producción
 
+La versión de demostración añade un resumen de ingresos, gastos, balance, categorías y movimientos ficticios después del acceso. El servidor entrega exclusivamente datos de ejemplo tras validar la sesión y la interfaz los elimina al cerrar sesión o caducar. No existe conexión a BBVA, importación de movimientos reales ni almacenamiento de datos financieros en esta demostración. Comprobar que el panel queda oculto al salir y vuelve a aparecer solo después de verificar Face ID.
+
 No se ha habilitado la recuperación pública. Si se pierde el autenticador, detener la prueba y revisar un procedimiento seguro de recuperación antes de reiniciar el almacenamiento aislado. No migrar esta credencial a producción. La conexión a BBVA, el consentimiento bancario y el despliegue de la aplicación principal necesitan aprobación aparte.
 
 Completar las comprobaciones físicas pendientes y una revisión de seguridad independiente siguen siendo requisitos antes de considerar la autenticación lista para producción. Los resultados de CI no equivalen a una auditoría completa.

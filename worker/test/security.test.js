@@ -286,3 +286,22 @@ test('manual deploy is restricted to the isolated branch, target and credential'
  assert.equal((workflow.match(/\bwrangler deploy\b/g)||[]).length,1);
  assert.match(workflow,/Verify isolated deployment target/);
 });
+
+test('demo dashboard requires the isolated environment and a validated session',()=>{
+ const route=worker.slice(worker.indexOf("if(url.pathname==='/auth/demo'){"));
+ assert.match(worker,/if\(url\.pathname==='\/auth\/demo' && !ready\)return json/);
+ assert.match(route,/if\(!await isAuthorized\(request,env\)\)return json/);
+ assert.match(route,/demo:true,bankConnected:false/);
+ assert.doesNotMatch(route,/fetch\(|localStorage|SUPABASE|ENABLE_BANKING/);
+});
+
+test('demo dashboard remains hidden until login and clears state on logout',()=>{
+ const html=readFileSync(new URL('../faceid-test/face-id.html',import.meta.url),'utf8');
+ const js=readFileSync(new URL('../faceid-test/face-id.js',import.meta.url),'utf8');
+ assert.match(html,/id="dashboard" hidden/);
+ assert.match(js,/dashboard'\)\.hidden=!token\|\|!displayed\|\|document\.hidden/);
+ assert.match(js,/await api\('\/auth\/demo',\{\},session\)/);
+ assert.match(js,/token!==session\|\|Date\.now\(\)>=expires/);
+ assert.match(js,/function reset\(\)\{token=null;expires=0;displayed=false/);
+ assert.doesNotMatch(js,/innerHTML|localStorage|sessionStorage/);
+});
