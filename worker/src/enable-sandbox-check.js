@@ -35,7 +35,17 @@ export async function checkSandbox({appId,pem,transport=fetch}){
  try{
   const get=async path=>{const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),10000);try{const r=await transport(API+path,{method:'GET',headers:{Authorization:'Bearer '+jwt,Accept:'application/json'},redirect:'manual',signal:controller.signal});if(r.status>=300&&r.status<400)return {error:'provider_redirect',status:r.status};if(!r.ok){const reason=r.status===401?'provider_unauthorized':r.status===403?'provider_forbidden':r.status===404?'provider_not_found':r.status===429?'provider_rate_limited':'provider_unavailable';return {error:reason,status:r.status};}try{return {value:await r.json()};}catch{return {error:'provider_invalid_response',status:r.status};}}catch(e){const cause=e?.cause;const code=typeof cause?.code==='string'?cause.code:'';const reason=controller.signal.aborted?'provider_timeout':['ENOTFOUND','EAI_AGAIN'].includes(code)?'provider_dns_error':['ECONNREFUSED','ECONNRESET','EHOSTUNREACH','ENETUNREACH'].includes(code)?'provider_connection_error':['CERT_HAS_EXPIRED','UNABLE_TO_VERIFY_LEAF_SIGNATURE','SELF_SIGNED_CERT_IN_CHAIN','ERR_TLS_CERT_ALTNAME_INVALID'].includes(code)?'provider_tls_error':'provider_network_error';return {error:reason};}finally{clearTimeout(timer);}};
   const app=await get('/application');if(app.error)return failure(app.error,stage,app.status);
-  if(!validateSandboxApplication(app.value,appId))return failure('sandbox_validation_failed');
+  if(!validateSandboxApplication(app.value,appId)){
+   const a=app.value;
+   const checks={
+    app_id: a?.kid===appId,
+    environment: a?.environment==='SANDBOX',
+    active: a?.active===true,
+    read_only: Array.isArray(a?.services)&&a.services.length===1&&a.services[0]==='AIS',
+    callback: Array.isArray(a?.redirect_urls)&&a.redirect_urls.includes(PLANNED_CALLBACK)
+   };
+   return {...failure('sandbox_validation_failed',stage),failedChecks:Object.keys(checks).filter(k=>!checks[k])};
+  }
   stage='aspsps';const banks=await get('/aspsps?country=ES&psu_type=personal&service=AIS');if(banks.error)return failure(banks.error,stage,banks.status);
   if(!Array.isArray(banks.value?.aspsps))return failure('provider_invalid_response',stage,200);
   const bbvaAvailable=banks.value.aspsps.some(bank=>bank.country==='ES'&&typeof bank.name==='string'&&bank.name.toUpperCase()==='BBVA');
