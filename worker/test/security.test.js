@@ -139,3 +139,13 @@ test('recovery code has 256 bits of random entropy and is never persisted as pla
  assert.match(source,/crypto\.getRandomValues\(bytes\)/);
  assert.match(source,/crypto\.subtle\.digest\('SHA-256'/);
 });
+
+// Recovery tickets alone are NOT proof of WebAuthn verification.
+// Keep recovery unreachable from the public Worker until challenge-bound
+// registration verification is implemented and independently reviewed.
+test('recovery cannot be invoked from public Worker routes',()=>{
+ const routes=worker.match(/if\(!\['\/auth\/register\/options'[\s\S]*?\.includes\(url\.pathname\)\)return json\(\{error:'Not found'\},404,h\);/);
+ assert.ok(routes,'public route allowlist missing');
+ assert.doesNotMatch(routes[0],/\/auth\/recovery|\/recovery\/prepare|\/recovery\/finalize/);
+ assert.doesNotMatch(worker,/state\(env,'\/recovery\/(?:prepare|finalize)'/);
+});
