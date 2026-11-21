@@ -41,3 +41,14 @@ test('Sandbox transport failures report only safe network categories',async()=>{
   assert.doesNotMatch(JSON.stringify(result),/Sensitive|PRIVATE KEY|Bearer/);
  }
 });
+
+test('Sandbox redirects are diagnosed without following or forwarding bearer credentials',async()=>{
+ let requests=0;
+ const result=await checkSandbox({appId,pem,transport:async(url,options)=>{
+  requests++;
+  assert.equal(options.redirect,'manual');
+  return {status:302,ok:false,headers:{get:()=> 'https://untrusted.example/'},json:async()=>{throw Error('Should not read redirect body');}};
+ }});
+ assert.deepEqual(result,{configured:true,verified:false,bbvaAvailable:false,reason:'provider_redirect',stage:'application',httpStatus:302});
+ assert.equal(requests,1);
+});
