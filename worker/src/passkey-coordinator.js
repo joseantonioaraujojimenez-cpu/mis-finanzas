@@ -78,6 +78,11 @@ export class PasskeyCoordinator extends DurableObject {
    await store.put('session:'+token,{expires:now+900000});
    return Response.json({token,expiresIn:900});
   }
+  if(path==='/session/revoke'){
+   if(typeof input.token!=='string'||input.token.length>256)return Response.json({revoked:false});
+   await store.delete('session:'+input.token);
+   return Response.json({revoked:true});
+  }
   if(path==='/session/validate'){
    if(typeof input.token!=='string')return Response.json({valid:false});
    const record=await store.get('session:'+input.token);
