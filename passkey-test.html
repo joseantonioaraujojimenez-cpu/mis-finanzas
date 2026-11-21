@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mis Finanzas · Prueba de Face ID</title>
+<style>
+body{font:16px system-ui,-apple-system,sans-serif;background:#f3f6f7;color:#172c35;max-width:480px;margin:40px auto;padding:16px}
+section{background:white;border-radius:18px;padding:20px;box-shadow:0 3px 15px #142f3912}
+button,input{width:100%;padding:13px;margin:8px 0;border-radius:9px;border:1px solid #b9c9cd;font:inherit}
+button{background:#102c34;color:white;cursor:pointer}button:disabled{opacity:.5}
+#status{white-space:pre-wrap;word-break:break-word;color:#3e535c}small{color:#647b82}
+</style></head><body><section>
+<h1>Face ID · Pruebas</h1>
+<p>Esta pantalla es experimental. No permite consultar BBVA ni tus movimientos.</p>
+<label for="bootstrap">Clave de alta inicial (solo una vez)</label>
+<input id="bootstrap" type="password" autocomplete="off" placeholder="Solo para registrar el primer dispositivo">
+<button id="register">Registrar este iPhone</button>
+<button id="login">Entrar con Face ID</button>
+<button id="statusCheck">Comprobar sesión</button>
+<button id="logout" disabled>Cerrar sesión</button>
+<p id="status" role="status">Comprobando disponibilidad del servidor…</p>
+<small>La clave de alta y la sesión se mantienen únicamente en memoria; no se guardan en el navegador. La verificación se realiza en el servidor.</small>
+</section><script type="module">
+import {startRegistration,startAuthentication} from 'https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@13/+esm';
+const BASE='https://mis-finanzas-auth-staging.joseantonioaraujojimenez.workers.dev';
+const $=id=>document.getElementById(id);
+let sessionToken=null;
+function setSession(token){sessionToken=token;$('logout').disabled=!token;}
+function show(s){$('status').textContent=s}
+async function api(path,body,token){
+ const response=await fetch(BASE+path,{method:'POST',headers:{
+  'Content-Type':'application/json',...(token?{'Authorization':'Bearer '+token}:{})
+ },body:JSON.stringify(body)});
+ const data=await response.json();
+ if(!response.ok)throw Error(data.error||'Error HTTP '+response.status);
+ return data;
+}
+async function run(button,fn){
+ button.disabled=true;
+ try{await fn()}catch(e){show('No se ha completado: '+(e?.message||'Error'))}
+ finally{button.disabled=false}
+}
+$('register').onclick=()=>run($('register'),async()=>{
+ const bootstrap=$('bootstrap').value;
+ if(!bootstrap){show('Introduce la clave de alta configurada en Cloudflare.');return}
+ show('Solicitando alta…');
+ const {options,flow}=await api('/auth/register/options',{bootstrap});
+ const response=await startRegistration({optionsJSON:options});
+ const result=await api('/auth/register/verify',{bootstrap,flow,response});
+ $('bootstrap').value='';
+ show(result.verified?'Passkey registrada. Ya puedes iniciar sesión.':'No se verificó el registro.');
+});
+$('login').onclick=()=>run($('login'),async()=>{
+ show('Solicitando autenticación…');
+ const {options,flow}=await api('/auth/login/options',{});
+ const response=await startAuthentication({optionsJSON:options});
+ const result=await api('/auth/login/verify',{flow,response});
+ setSession(result.token);
+ show(result.authenticated?'Autenticación verificada. Sesión temporal creada (15 minutos).':'Autenticación no verificada.');
+});
+$('statusCheck').onclick=()=>run($('statusCheck'),async()=>{
+ if(!sessionToken){show('No hay una sesión activa en esta pantalla.');return}
+ const result=await api('/auth/status',{},sessionToken);
+ if(!result.authenticated)setSession(null);
+ show(result.authenticated?'Sesión activa.':'Sesión caducada o revocada.');
+});
+$('logout').onclick=()=>run($('logout'),async()=>{
+ try{await api('/auth/logout',{},sessionToken)}finally{setSession(null)}
+ show('Sesión cerrada.');
+});
+async function checkAvailability(){
+ try{
+  const response=await fetch(BASE+'/',{cache:'no-store'});
+  if(!response.ok)throw Error('Servidor no disponible');
+  const data=await response.json();
+  if(data.passkeys!=='enabled'){
+   $('register').disabled=true;
+   $('login').disabled=true;
+   show('Face ID todavía no está activado. Esta página es de pruebas; no necesitas configurar nada por ahora.');
+  }else show('Servidor preparado. Puedes iniciar la prueba.');
+ }catch{
+  $('register').disabled=true;
+  $('login').disabled=true;
+  show('No se puede comprobar el servidor. El registro y el acceso permanecen bloqueados.');
+ }
+}
+checkAvailability();
+</script></body></html>

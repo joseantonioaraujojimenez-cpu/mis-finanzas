@@ -1,0 +1,144 @@
+name: Worker security checks
+on:
+  push:
+    branches: [feature/bbva-passkey-security]
+  pull_request:
+    paths:
+      - 'worker/**'
+      - 'passkey-test.html'
+# Only test the newest commit on a branch; older runs become obsolete.
+concurrency:
+  group: worker-security-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install worker dependencies
+        working-directory: worker
+        run: npm install --no-audit --no-fund
+      - name: Run security checks
+        working-directory: worker
+        run: npm test
+      - name: Build Worker (no deployment)
+        working-directory: worker
+        run: npx wrangler deploy --dry-run --outdir /tmp/mis-finanzas-worker-build
+      - name: Smoke test local Worker (no banking access)
+        working-directory: worker
+        run: |
+          npx wrangler dev --local --port 8787 > /tmp/mis-finanzas-wrangler.log 2>&1 &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          READY=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8787/ >/tmp/mis-finanzas-root.json; then READY=1; break; fi
+            sleep 1
+          done
+          if [ "$READY" != "1" ]; then cat /tmp/mis-finanzas-wrangler.log; exit 1; fi
+          grep -q '"bank_connected":false' /tmp/mis-finanzas-root.json
+          STATUS=$(curl -s -o /tmp/mis-finanzas-auth.json -w '%{http_code}' \
+            -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' \
+            -H 'Content-Type: application/json' \
+            -d '{}' http://127.0.0.1:8787/auth/login/options)
+          test "$STATUS" = "503"
+          # All four WebAuthn entry points must remain disabled.
+          for ROUTE in register/options register/verify login/options login/verify; do
+            STATUS=$(curl -s -o /tmp/mis-finanzas-blocked.json -w '%{http_code}' \
+              -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' \
+              -H 'Content-Type: application/json' \
+              -d '{}' "http://127.0.0.1:8787/auth/$ROUTE")
+            test "$STATUS" = "503"
+            grep -q 'disabled pending integration tests' /tmp/mis-finanzas-blocked.json
+          done
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8787/api/transactions)
+          test "$STATUS" = "404"
+          # Internal recovery primitives must never be exposed as public endpoints.
+          for ROUTE in store consume prepare challenge/create challenge/consume finalize; do
+            STATUS=$(curl -s -o /dev/null -w '%{http_code}' -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' -H 'Content-Type: application/json' -d '{}' "http://127.0.0.1:8787/recovery/$ROUTE")
+            test "$STATUS" = "404"
+          done
+          # Untrusted origins must not reach authentication.
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'Origin: https://example.org' \
+            -H 'Content-Type: application/json' \
+            -d '{}' http://127.0.0.1:8787/auth/status)
+          test "$STATUS" = "403"
+          # Requests must declare JSON; rejected even when auth is disabled.
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' \
+            -H 'Content-Type: text/plain' \
+            -d '{}' http://127.0.0.1:8787/auth/status)
+          test "$STATUS" = "415"
+          # Logout with no active token is safe and idempotent.
+          STATUS=$(curl -s -o /tmp/mis-finanzas-logout.json -w '%{http_code}' \
+            -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' \
+            -H 'Content-Type: application/json' \
+            -d '{}' http://127.0.0.1:8787/auth/logout)
+          test "$STATUS" = "200"
+          grep -q '"loggedOut":true' /tmp/mis-finanzas-logout.json
+          # An unknown token must not authenticate.
+          STATUS=$(curl -s -o /tmp/mis-finanzas-status.json -w '%{http_code}' \
+            -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' \
+            -H 'Content-Type: application/json' \
+            -H 'Authorization: Bearer invalid-test-token' \
+            -d '{}' http://127.0.0.1:8787/auth/status)
+          test "$STATUS" = "200"
+          grep -q '"authenticated":false' /tmp/mis-finanzas-status.json
+          # Disallow unexpected methods before any state access.
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE http://127.0.0.1:8787/)
+          test "$STATUS" = "405"
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X PUT \
+            -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' \
+            http://127.0.0.1:8787/auth/status)
+          test "$STATUS" = "405"
+          # Unknown and disabled endpoints must not leak caching headers.
+          curl -sD /tmp/mis-finanzas-headers.txt -o /dev/null http://127.0.0.1:8787/
+          grep -qi '^cache-control: no-store' /tmp/mis-finanzas-headers.txt
+          # Defensive headers must be present on public JSON responses.
+          grep -qi '^x-content-type-options: nosniff' /tmp/mis-finanzas-headers.txt
+          grep -qi '^referrer-policy: no-referrer' /tmp/mis-finanzas-headers.txt
+          grep -qi '^x-frame-options: DENY' /tmp/mis-finanzas-headers.txt
+          grep -qi '^content-security-policy:' /tmp/mis-finanzas-headers.txt
+          # Public root is read-only.
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8787/)
+          test "$STATUS" = "405"
+          # Unknown authentication paths must not be accepted.
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' \
+            -H 'Content-Type: application/json' \
+            -d '{}' http://127.0.0.1:8787/auth/unrecognized)
+          test "$STATUS" = "404"
+          # Preflight from an untrusted site is denied.
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X OPTIONS \
+            -H 'Origin: https://attacker.example' \
+            http://127.0.0.1:8787/auth/status)
+          test "$STATUS" = "403"
+          # Authorized preflight advertises only the expected origin.
+          STATUS=$(curl -sD /tmp/mis-finanzas-cors.txt -o /dev/null -w '%{http_code}' -X OPTIONS \
+            -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' \
+            -H 'Access-Control-Request-Method: POST' \
+            -H 'Access-Control-Request-Headers: content-type,authorization' \
+            http://127.0.0.1:8787/auth/status)
+          test "$STATUS" = "204"
+          grep -qi '^access-control-allow-origin: https://joseantonioaraujojimenez-cpu.github.io' /tmp/mis-finanzas-cors.txt
+          grep -qi '^vary: Origin' /tmp/mis-finanzas-cors.txt
+          # CORS preflight must not be cached by intermediaries.
+          grep -qi '^cache-control: no-store' /tmp/mis-finanzas-cors.txt
+      - name: Integration test Durable Object with local Wrangler (no deployment)
+        working-directory: worker
+        run: |
+          npx wrangler dev --config wrangler.test.jsonc --local --port 8788 > /tmp/mis-finanzas-coordinator.log 2>&1 &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          READY=0
+          for i in $(seq 1 40); do
+            STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8788/ || true)
+            if [ "$STATUS" = "404" ]; then READY=1; break; fi
+            sleep 1
+          done
+          if [ "$READY" != "1" ]; then cat /tmp/mis-finanzas-coordinator.log; exit 1; fi
+          node test/coordinator-integration.mjs

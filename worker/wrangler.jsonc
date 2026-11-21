@@ -1,0 +1,9 @@
+{
+  "name": "mis-finanzas-auth-staging",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "durable_objects": { "bindings": [{ "name": "PASSKEY_COORDINATOR", "class_name": "PasskeyCoordinator" }] },
+  "migrations": [{ "tag": "v1-passkey-coordinator", "new_sqlite_classes": ["PasskeyCoordinator"] }]
+}
