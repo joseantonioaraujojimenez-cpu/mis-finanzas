@@ -62,3 +62,11 @@ jobs:
             -d '{}' http://127.0.0.1:8787/auth/logout)
           test "$STATUS" = "200"
           grep -q '"loggedOut":true' /tmp/mis-finanzas-logout.json
+          # An unknown token must not authenticate.
+          STATUS=$(curl -s -o /tmp/mis-finanzas-status.json -w '%{http_code}' \
+            -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' \
+            -H 'Content-Type: application/json' \
+            -H 'Authorization: Bearer invalid-test-token' \
+            -d '{}' http://127.0.0.1:8787/auth/status)
+          test "$STATUS" = "200"
+          grep -q '"authenticated":false' /tmp/mis-finanzas-status.json
