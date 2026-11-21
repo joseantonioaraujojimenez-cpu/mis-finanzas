@@ -54,3 +54,13 @@ test('Sandbox policy diagnostics expose only failed check names',async()=>{
  assert.equal(result.stage,'application');
  assert.doesNotMatch(JSON.stringify(result),/different.example|PRIVATE KEY/);
 });
+
+test('AIS diagnostic distinguishes extra permissions, missing AIS and unexpected service formats',async()=>{
+ for(const [services,expected] of [[['AIS','PIS'],'additional_services'],[['PIS'],'ais_missing'],[null,'unexpected_format'],[['AIS','AIS'],'unexpected_format']]){
+  const result=await checkSandbox({appId:id,pem:privateKey,transport:async()=>({ok:true,status:200,json:async()=>({...app,services})})});
+  assert.equal(result.reason,'sandbox_validation_failed');
+  assert.equal(result.serviceDiagnostic,expected);
+  assert.deepEqual(result.failedChecks,['read_only']);
+  assert.equal(result.verified,false);
+ }
+});
