@@ -43,8 +43,8 @@ export default {
   if(request.method==='OPTIONS')return new Response(null,{status:origin===ORIGIN?204:403,headers:h});
   if(url.pathname==='/')return json({service:'Mis Finanzas',bank_connected:false,passkeys:'backend available'},200,h);
   if(!url.pathname.startsWith('/auth/'))return json({error:'Not found'},404,h);
-  // FAIL CLOSED: the Durable Object flow is wired but not yet integration-tested,
-  // rate-limited or audited. Do not activate banking or registration.
+  // FAIL CLOSED: WebAuthn integration and recovery have not been audited or tested
+  // with a real authenticator. Banking and passkey enrollment remain disabled.
   if(['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify'].includes(url.pathname))
     return json({error:'Passkey enrollment/login disabled pending integration tests and security review'},503,h);
   if(origin!==ORIGIN)return json({error:'Forbidden origin'},403,h);
