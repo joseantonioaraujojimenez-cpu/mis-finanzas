@@ -44,7 +44,12 @@ export async function checkSandbox({appId,pem,transport=fetch}){
     read_only: Array.isArray(a?.services)&&a.services.length===1&&a.services[0]==='AIS',
     callback: Array.isArray(a?.redirect_urls)&&a.redirect_urls.includes(PLANNED_CALLBACK)
    };
-   return {...failure('sandbox_validation_failed',stage),failedChecks:Object.keys(checks).filter(k=>!checks[k])};
+   const serviceDiagnostic = !checks.read_only ? (
+     !Array.isArray(a?.services) ? 'unexpected_format' :
+     a.services.includes('AIS') && a.services.some(s=>s!=='AIS') ? 'additional_services' :
+     !a.services.includes('AIS') ? 'ais_missing' : 'unexpected_format'
+    ) : undefined;
+   return {...failure('sandbox_validation_failed',stage),failedChecks:Object.keys(checks).filter(k=>!checks[k]),...(serviceDiagnostic?{serviceDiagnostic}:{})};
   }
   stage='aspsps';const banks=await get('/aspsps?country=ES&psu_type=personal&service=AIS');if(banks.error)return failure(banks.error,stage,banks.status);
   if(!Array.isArray(banks.value?.aspsps))return failure('provider_invalid_response',stage,200);
