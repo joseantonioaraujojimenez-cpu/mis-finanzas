@@ -3,7 +3,6 @@
 // Do not use KV get()+delete() for one-time challenges.
 import { DurableObject } from 'cloudflare:workers';
 import {transitionDemoConsent} from './demo-consent.js';
-import {consumeAuthorizationState} from './bbva-authorization-state.js';
 
 export class PasskeyCoordinator extends DurableObject {
  async fetch(request) {
@@ -36,8 +35,20 @@ export class PasskeyCoordinator extends DurableObject {
    }catch{return Response.json({saved:false},{status:400});}
   }
   if(path==='/bbva/ais/state/consume'){
+   // No exchange unless the SAME Face ID session remains valid.
+   if(typeof input.token!=='string'||input.token.length<32||input.token.length>256)
+    return Response.json({record:null},{status:403});
+   const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(input.token))),b=>b.toString(16).padStart(2,'0')).join('');
    try{
-    const record=await consumeAuthorizationState({storage:store,state:input.state,now});
+    const record=await store.transaction(async tx=>{
+     if(typeof input.state!=='string'||!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(input.state))return null;
+     const key='bbva:ais:state:'+input.state,stored=await tx.get(key);
+     if(!stored||stored.consumed)return null;
+     await tx.put(key,{state:input.state,consumed:true,expiresAt:stored.expiresAt});
+     const session=await tx.get('session:'+input.token),epoch=(await tx.get('session_epoch'))||0;
+     if(!session||session.expires<=Date.now()||session.epoch!==epoch||stored.ownerEpoch!==epoch||stored.ownerSessionDigest!==digest||stored.expiresAt<=Date.now())return null;
+     return {state:stored.state,expiresAt:stored.expiresAt,callback:stored.callback};
+    });
     return Response.json({record});
    }catch{return Response.json({record:null},{status:400});}
   }
