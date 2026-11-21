@@ -9,7 +9,7 @@ export async function consumeAuthorizationState({storage,state,now=Date.now()}){
   const key='bbva:ais:state:'+state;
   const record=await tx.get(key);
   if(!record)return null;
-  await tx.delete(key); // Burn even expired/invalid attempts.
+  await tx.put(key,{state,consumed:true,expiresAt:record.expiresAt}); // Tombstone blocks state reuse.
   if(record.state!==state||record.consumed!==false||!Number.isFinite(record.expiresAt)||record.expiresAt<=now||record.callback!=='https://mis-finanzas-faceid-test.joseantonioaraujojimenez.workers.dev/bank/callback')return null;
   return {state:record.state,expiresAt:record.expiresAt,callback:record.callback};
  });
@@ -19,7 +19,7 @@ export async function saveAuthorizationState({storage,record,now=Date.now()}){
  if(!record||typeof record.state!=='string'||!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(record.state)||record.consumed!==false||!Number.isFinite(record.expiresAt)||record.expiresAt<=now||record.expiresAt>now+600000||record.callback!=='https://mis-finanzas-faceid-test.joseantonioaraujojimenez.workers.dev/bank/callback')throw new Error('Invalid AIS state');
  return storage.transaction(async tx=>{
   const key='bbva:ais:state:'+record.state;
-  if(await tx.get(key))return false;
+  if(await tx.get(key))return false; // A consumed state stays reserved to prevent replay.
   await tx.put(key,{state:record.state,expiresAt:record.expiresAt,callback:record.callback,consumed:false});
   return true;
  });
