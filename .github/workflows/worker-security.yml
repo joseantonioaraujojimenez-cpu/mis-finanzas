@@ -1,0 +1,27 @@
+name: Worker security checks
+on:
+  push:
+    branches: [feature/bbva-passkey-security]
+  pull_request:
+    paths:
+      - 'worker/**'
+      - 'passkey-test.html'
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+      - name: Install worker dependencies
+        working-directory: worker
+        run: npm install --no-audit --no-fund
+      - name: Run security checks
+        working-directory: worker
+        run: npm test
+      - name: Build Worker (no deployment)
+        working-directory: worker
+        run: npx wrangler deploy --dry-run --outdir /tmp/mis-finanzas-worker-build
