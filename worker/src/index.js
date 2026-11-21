@@ -65,7 +65,8 @@ export default {
       return json({error:'Registration forbidden'},403,h);
     const options=await generateRegistrationOptions({
       rpName:RP_NAME,rpID:RP_ID,userName:'propietario',userDisplayName:'Propietario',
-      attestationType:'none',authenticatorSelection:{userVerification:'required',residentKey:'required'}
+      attestationType:'none',authenticatorSelection:{userVerification:'required',residentKey:'required'},
+      excludeCredentials:[]
     });
     const {id:flow}=await state(env,'/challenge/create',{kind:'register',challenge:options.challenge});
     return json({options,flow},200,h);
