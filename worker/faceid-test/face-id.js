@@ -15,8 +15,10 @@ function render(){
  $('consentStatus').textContent=consentActive?'Consentimiento simulado activo hasta '+new Date(consentUntil).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Sin consentimiento simulado activo.';
  $('locked').hidden=!!token&&displayed;
  $('dashboard').hidden=!token||!displayed||document.hidden;
+ $('sandboxCard').hidden=!token||!displayed||document.hidden;
+ $('sandboxCheck').disabled=busy||!token||!displayed;
 }
-function reset(){token=null;expires=0;displayed=false;consentUntil=0;$('consentAccept').checked=false;for(const id of ['demoIncome','demoExpense','demoBalance','demoCount','demoCategories','demoMoves','sessionTime','syncSummary'])$(id).replaceChildren();render();}
+function reset(){token=null;expires=0;displayed=false;consentUntil=0;$('consentAccept').checked=false;for(const id of ['demoIncome','demoExpense','demoBalance','demoCount','demoCategories','demoMoves','sessionTime','syncSummary','sandboxResult'])$(id).replaceChildren();render();}
 const euro=n=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(n);
 function element(tag,text,klass){const e=document.createElement(tag);if(text!==undefined)e.textContent=String(text);if(klass)e.className=klass;return e;}
 function showDemo(data){
@@ -68,6 +70,7 @@ $('check').onclick=()=>run(async()=>{const result=await api('/auth/status',{},to
 $('consentAccept').onchange=render;
 $('consentGrant').onclick=()=>run(async()=>{if(!$('consentAccept').checked)return;await consentAction('grant');$('consentAccept').checked=false;show('Consentimiento simulado activado. BBVA real sigue desconectado.');});
 $('consentRevoke').onclick=()=>run(async()=>{await consentAction('revoke');$('consentAccept').checked=false;show('Consentimiento simulado revocado.');});
+$('sandboxCheck').onclick=()=>run(async()=>{const session=token;$('sandboxResult').textContent='Verificando aplicación…';try{const result=await api('/auth/sandbox/check',{},session);if(!session||session!==token||Date.now()>=expires)return;const messages={ready:'✅ Sandbox verificado. BBVA España disponible para pruebas.',bbva_not_listed:'Sandbox verificado, pero BBVA España no aparece en el listado.',missing_configuration:'Faltan los secretos de Sandbox en el servidor.',sandbox_validation_failed:'La aplicación no cumple los requisitos de Sandbox y solo lectura.',provider_check_failed:'No se ha podido verificar la aplicación. Revisa su configuración.'};$('sandboxResult').textContent=messages[result.reason]||'Verificación no disponible.';}catch(e){if(session===token)$('sandboxResult').textContent='No se ha podido completar la verificación.';throw e;}});
 $('sync').onclick=()=>run(async()=>{try{const data=await consentAction('sync');showDemo(data);show('Movimientos simulados actualizados sin duplicados.');}catch(e){try{await consentAction('status');}catch{reset();}throw e;}});
 $('logout').onclick=()=>run(async()=>{const session=token;reset();await api('/auth/logout',{},session);show('Sesión cerrada.');});
 setInterval(()=>{if(token&&Date.now()>=expires){reset();show('Sesión caducada.');}else if(token&&displayed){const seconds=Math.max(0,Math.ceil((expires-Date.now())/1000));$('sessionTime').textContent=`Sesión restante: ${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;if(consentUntil&&consentUntil<=Date.now()){consentUntil=0;render();}}},1000);

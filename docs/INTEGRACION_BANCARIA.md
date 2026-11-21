@@ -8,7 +8,7 @@ La fase de consentimiento simulado permite al propietario conceder acceso de sol
 
 El propietario autorizó preparar la consulta de saldos y movimientos de BBVA por Enable Banking. El módulo `worker/src/enable-banking-contract.js` describe las peticiones permitidas (autorización de cuenta, intercambio de código, estado y revocación de consentimiento, lecturas de saldo y movimientos); no contiene un transporte de red y no se importa desde el Worker desplegado. El callback indicado es una ruta prevista, aún no publicada. Las pruebas usan identificadores ficticios. No existe ninguna operación de pagos.
 
-El siguiente hito es comprobar si el propietario tiene una aplicación **Sandbox** de Enable Banking. BBVA España dispone de un sandbox según su documentación. La integración real y cualquier dato financiero permanecen desconectados hasta completar el consentimiento oficial, revisar el tratamiento y almacenamiento de datos y probar el sandbox. No introducir credenciales bancarias o claves privadas en el chat ni en GitHub.
+El propietario ha creado una aplicación Sandbox y ha configurado sus dos secretos exclusivos en el Worker de pruebas. El nuevo botón de diagnóstico valida, mediante peticiones de metadatos, el entorno SANDBOX, el servicio AIS, el callback registrado y la presencia de BBVA España. No inicia autorización ni consulta cuentas. La integración real y cualquier dato financiero permanecen desconectados hasta completar el consentimiento oficial, revisar el tratamiento y almacenamiento de datos y probar el sandbox. No introducir credenciales bancarias o claves privadas en el chat ni en GitHub.
 
 ## Lista de control antes de activar una conexión real
 

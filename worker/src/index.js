@@ -1,5 +1,6 @@
 export { PasskeyCoordinator } from './passkey-coordinator.js';
 import {demoBankSnapshot} from './bank-demo.js';
+import {checkSandbox} from './enable-sandbox-check.js';
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -70,7 +71,8 @@ export default {
     ? json({service:'Mis Finanzas',bank_connected:false,passkeys:ready?'enabled':'disabled pending review',isolated},200,h)
     : json({error:'Method not allowed'},405,h);
   if(!url.pathname.startsWith('/auth/'))return json({error:'Not found'},404,h);
-  if(!['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify','/auth/status','/auth/logout','/auth/demo','/auth/demo/consent'].includes(url.pathname))return json({error:'Not found'},404,h);
+  if(!['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify','/auth/status','/auth/logout','/auth/demo','/auth/demo/consent','/auth/sandbox/check'].includes(url.pathname))return json({error:'Not found'},404,h);
+  if(url.pathname==='/auth/sandbox/check' && !ready)return json({error:'Not found'},404,h);
   if(url.pathname==='/auth/demo' && !ready)return json({error:'Not found'},404,h);
   if(url.pathname==='/auth/demo/consent' && !ready)return json({error:'Not found'},404,h);
   // FAIL CLOSED: WebAuthn integration and recovery have not been audited or tested
@@ -151,6 +153,11 @@ export default {
     return json({loggedOut:true},200,h);
    }
    if(url.pathname==='/auth/status')return json({authenticated:await isAuthorized(request,env)},200,h);
+   if(url.pathname==='/auth/sandbox/check'){
+    if(!await isAuthorized(request,env))return json({error:'Session expired or invalid'},401,h);
+    const result=await checkSandbox({appId:env.ENABLE_SANDBOX_APP_ID,pem:env.ENABLE_SANDBOX_PRIVATE_KEY});
+    return json({sandbox:true,bankConnected:false,...result},200,h);
+   }
    if(url.pathname==='/auth/demo/consent'){
     const {action}=await readBody(request);
     if(!['status','grant','revoke','sync'].includes(action))return json({error:'Invalid simulated consent action'},400,h);
