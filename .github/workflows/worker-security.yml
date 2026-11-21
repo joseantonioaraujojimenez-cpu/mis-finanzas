@@ -46,11 +46,11 @@ jobs:
             -d '{}' http://127.0.0.1:8787/auth/login/options)
           test "$STATUS" = "503"
           # All four WebAuthn entry points must remain disabled.
-          for PATH in register/options register/verify login/options login/verify; do
+          for ROUTE in register/options register/verify login/options login/verify; do
             STATUS=$(curl -s -o /tmp/mis-finanzas-blocked.json -w '%{http_code}' \
               -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' \
               -H 'Content-Type: application/json' \
-              -d '{}' "http://127.0.0.1:8787/auth/$PATH")
+              -d '{}' "http://127.0.0.1:8787/auth/$ROUTE")
             test "$STATUS" = "503"
             grep -q 'disabled pending integration tests' /tmp/mis-finanzas-blocked.json
           done
