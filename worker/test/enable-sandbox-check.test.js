@@ -45,3 +45,12 @@ test('provider failures identify only sanitized stage and HTTP code',async()=>{
  const failed=await checkSandbox({appId:id,pem:privateKey,transport:async()=>({ok:false,status:400})});assert.equal(failed.reason,'provider_unavailable');assert.equal(failed.httpStatus,400);assert.equal(failed.stage,'application');
  const network=await checkSandbox({appId:id,pem:privateKey,transport:async()=>{throw Error('private internal error');}});assert.equal(network.reason,'provider_network_error');assert.equal(network.stage,'application');assert.doesNotMatch(JSON.stringify(network),/private internal error/);
 });
+
+test('Sandbox policy diagnostics expose only failed check names',async()=>{
+ const invalid={...app,redirect_urls:['https://different.example/callback'],services:['AIS','PIS']};
+ const result=await checkSandbox({appId:id,pem:privateKey,transport:async()=>({ok:true,status:200,json:async()=>invalid})});
+ assert.equal(result.reason,'sandbox_validation_failed');
+ assert.deepEqual(result.failedChecks,['read_only','callback']);
+ assert.equal(result.stage,'application');
+ assert.doesNotMatch(JSON.stringify(result),/different.example|PRIVATE KEY/);
+});
