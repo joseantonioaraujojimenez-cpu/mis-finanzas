@@ -11,6 +11,22 @@ export class PasskeyCoordinator extends DurableObject {
   try{input=await request.json()}catch{return Response.json({error:'Invalid JSON'},{status:400})}
   const store=this.ctx.storage;
   const now=Date.now();
+  if(path==='/rate/check'){
+   const action=input.action;
+   if(!['register','login'].includes(action))return Response.json({error:'Invalid action'},{status:400});
+   const limit=action==='register'?5:12;
+   const windowMs=action==='register'?900000:300000;
+   const key='rate:'+action;
+   const allowed=await store.transaction(async tx=>{
+    const previous=await tx.get(key);
+    const record=previous&&previous.until>now?previous:{count:0,until:now+windowMs};
+    if(record.count>=limit)return false;
+    record.count+=1;
+    await tx.put(key,record);
+    return true;
+   });
+   return Response.json({allowed});
+  }
   if(path==='/challenge/create'){
    if(!['register','login'].includes(input.kind) || typeof input.challenge!=='string')
     return Response.json({error:'Invalid challenge'},{status:400});
