@@ -114,6 +114,12 @@ export default {
     const {token}=await state(env,'/session/create');
     return json({authenticated:true,token,expiresIn:900},200,h);
    }
+   if(url.pathname==='/auth/logout'){
+    const token=request.headers.get('Authorization')?.replace(/^Bearer /,'');
+    if(!token)return json({loggedOut:true},200,h);
+    await state(env,'/session/revoke',{token});
+    return json({loggedOut:true},200,h);
+   }
    if(url.pathname==='/auth/status')return json({authenticated:await isAuthorized(request,env)},200,h);
    return json({error:'Not found'},404,h);
   } catch(e) {
