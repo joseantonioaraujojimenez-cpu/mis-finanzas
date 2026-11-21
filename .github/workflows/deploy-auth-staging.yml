@@ -6,6 +6,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: mis-finanzas-faceid-test-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy-staging:
     if: github.ref == 'refs/heads/feature/bbva-passkey-security'
@@ -14,7 +18,8 @@ jobs:
       - name: Checkout experimental branch
         uses: actions/checkout@v4
         with:
-          ref: feature/bbva-passkey-security
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -28,6 +33,10 @@ jobs:
       - name: Run security checks
         working-directory: worker
         run: npm test
+
+      - name: Verify isolated deployment target
+        working-directory: worker
+        run: node -e 'const c=JSON.parse(require("node:fs").readFileSync("wrangler.faceid-test.jsonc")); if(c.name!=="mis-finanzas-faceid-test" || c.vars?.FACEID_TEST_MODE!=="enabled") process.exit(1)'
 
       - name: Deploy isolated staging Worker
         working-directory: worker
