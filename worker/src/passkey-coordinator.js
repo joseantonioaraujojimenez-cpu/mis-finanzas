@@ -66,7 +66,7 @@ export class PasskeyCoordinator extends DurableObject {
     const c=await tx.get('owner_credential');
     if(!c||c.id!==input.id||!Number.isSafeInteger(input.counter)||input.counter<0)return false;
     // Zero counters are allowed for authenticators that do not support counters.
-    if(c.counter>0&&input.counter>0&&input.counter<=c.counter)return false;
+    if(c.counter>0&&input.counter<=c.counter)return false;
     c.counter=input.counter;
     await tx.put('owner_credential',c);
     return true;
