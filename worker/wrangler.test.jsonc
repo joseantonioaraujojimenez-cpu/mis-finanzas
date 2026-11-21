@@ -1,0 +1,10 @@
+{
+  "name": "mis-finanzas-coordinator-test-only",
+  "main": "test/coordinator-harness.js",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [{"name":"PASSKEY_COORDINATOR","class_name":"PasskeyCoordinator"}]
+  },
+  "migrations": [{"tag":"v1","new_sqlite_classes":["PasskeyCoordinator"]}]
+}
