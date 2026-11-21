@@ -3,6 +3,7 @@
 // Do not use KV get()+delete() for one-time challenges.
 import { DurableObject } from 'cloudflare:workers';
 import {transitionDemoConsent} from './demo-consent.js';
+import {saveAuthorizationState,consumeAuthorizationState} from './bbva-authorization-state.js';
 
 export class PasskeyCoordinator extends DurableObject {
  async fetch(request) {
@@ -12,6 +13,20 @@ export class PasskeyCoordinator extends DurableObject {
   try{input=await request.json()}catch{return Response.json({error:'Invalid JSON'},{status:400})}
   const store=this.ctx.storage;
   const now=Date.now();
+  // Internal AIS state operations only. No public Worker route calls these yet.
+  // They must not be exposed until the caller is bound to an authenticated owner session.
+  if(path==='/bbva/ais/state/save'){
+   try{
+    const saved=await saveAuthorizationState({storage:store,record:input.record,now});
+    return Response.json({saved});
+   }catch{return Response.json({saved:false},{status:400});}
+  }
+  if(path==='/bbva/ais/state/consume'){
+   try{
+    const record=await consumeAuthorizationState({storage:store,state:input.state,now});
+    return Response.json({record});
+   }catch{return Response.json({record:null},{status:400});}
+  }
   if(path==='/health/check'){
    return Response.json({ok:true});
   }
