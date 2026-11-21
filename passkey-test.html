@@ -16,7 +16,7 @@ button{background:#102c34;color:white;cursor:pointer}button:disabled{opacity:.5}
 <button id="login">Entrar con Face ID</button>
 <button id="statusCheck">Comprobar sesión</button>
 <button id="logout" disabled>Cerrar sesión</button>
-<p id="status" role="status">Esperando…</p>
+<p id="status" role="status">Comprobando disponibilidad del servidor…</p>
 <small>La clave de alta y la sesión se mantienen únicamente en memoria; no se guardan en el navegador. La verificación se realiza en el servidor.</small>
 </section><script type="module">
 import {startRegistration,startAuthentication} from 'https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@13/+esm';
@@ -66,4 +66,21 @@ $('logout').onclick=()=>run($('logout'),async()=>{
  try{await api('/auth/logout',{},sessionToken)}finally{setSession(null)}
  show('Sesión cerrada.');
 });
+async function checkAvailability(){
+ try{
+  const response=await fetch(BASE+'/',{cache:'no-store'});
+  if(!response.ok)throw Error('Servidor no disponible');
+  const data=await response.json();
+  if(data.passkeys!=='enabled'){
+   $('register').disabled=true;
+   $('login').disabled=true;
+   show('Face ID todavía no está activado. Esta página es de pruebas; no necesitas configurar nada por ahora.');
+  }else show('Servidor preparado. Puedes iniciar la prueba.');
+ }catch{
+  $('register').disabled=true;
+  $('login').disabled=true;
+  show('No se puede comprobar el servidor. El registro y el acceso permanecen bloqueados.');
+ }
+}
+checkAvailability();
 </script></body></html>
