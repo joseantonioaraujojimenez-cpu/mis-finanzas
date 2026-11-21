@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {generateKeyPairSync,createVerify} from 'node:crypto';
+import {generateKeyPairSync,createVerify,createPrivateKey} from 'node:crypto';
 import {signSandboxRequest,validateSandboxApplication,checkSandbox} from '../src/enable-sandbox-check.js';
 import {PLANNED_CALLBACK} from '../src/enable-banking-contract.js';
 const id='11111111-1111-4111-8111-111111111111';
@@ -23,4 +23,17 @@ test('production, missing callback and non-AIS apps are rejected before discover
 });
 test('missing configuration makes no network request',async()=>{
  const result=await checkSandbox({transport:async()=>{throw Error('Unexpected call');}});assert.equal(result.configured,false);
+});
+test('both PKCS#8 and PKCS#1 RSA keys are accepted without modifying the original',async()=>{
+ const pkcs1=createPrivateKey(privateKey).export({type:'pkcs1',format:'pem'});
+ assert.equal(await signSandboxRequest(id,pkcs1,1700000000000),await signSandboxRequest(id,privateKey,1700000000000));
+ assert.equal(await signSandboxRequest(id,privateKey.replace(/\n/g,'\\n'),1700000000000),await signSandboxRequest(id,privateKey,1700000000000));
+});
+test('diagnostics distinguish invalid configuration and sanitized provider status',async()=>{
+ const unused=async()=>{throw Error('Unexpected call');};
+ assert.equal((await checkSandbox({appId:'invalid',pem:privateKey,transport:unused})).reason,'invalid_app_id');
+ assert.equal((await checkSandbox({appId:id,pem:'invalid',transport:unused})).reason,'invalid_private_key');
+ for(const [status,reason] of [[401,'provider_unauthorized'],[403,'provider_forbidden'],[404,'provider_not_found'],[429,'provider_rate_limited'],[500,'provider_unavailable']]){
+  const result=await checkSandbox({appId:id,pem:privateKey,transport:async()=>({ok:false,status})});assert.equal(result.reason,reason);assert.equal(result.verified,false);
+ }
 });
