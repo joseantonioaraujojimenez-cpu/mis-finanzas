@@ -57,3 +57,11 @@ test('authenticator counter cannot decrease or reset to zero',()=>{
  const coordinator=readFileSync(new URL('../src/passkey-coordinator.js',import.meta.url),'utf8');
  assert.match(coordinator,/c\.counter>0&&input\.counter<=c\.counter/);
 });
+
+test('logout revokes the server-side session rather than only hiding the UI',()=>{
+ const coordinator=readFileSync(new URL('../src/passkey-coordinator.js',import.meta.url),'utf8');
+ assert.match(worker,/url\.pathname==='\/auth\/logout'/);
+ assert.match(worker,/state\(env,'\/session\/revoke'/);
+ assert.match(coordinator,/path==='\/session\/revoke'/);
+ assert.match(coordinator,/await store\.delete\('session:'\+input\.token\)/);
+});
