@@ -101,3 +101,8 @@ test('public service status reports passkeys disabled until review',()=>{
  assert.match(worker,/passkeys:'disabled pending review'/);
  assert.match(worker,/request\.method==='GET'/);
 });
+
+test('authentication responses carry defensive browser headers',()=>{
+ for(const header of ['Referrer-Policy','X-Frame-Options','Content-Security-Policy','X-Content-Type-Options'])
+  assert.ok(worker.includes(header),header);
+});
