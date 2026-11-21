@@ -6,7 +6,10 @@
 - WebAuthn con origen GitHub Pages y RP ID fijados.
 - Durable Object para desafíos de un solo uso, alta única, contadores y sesiones de 15 minutos.
 - Límites de intentos en registro y acceso, tanto al solicitar opciones como al verificar.
-- Cierre de sesión con revocación del token; pantalla experimental para registro, acceso, estado y cierre.
+- Cierre de sesión con revocación del token; creación y validación de sesiones coordinadas transaccionalmente con la revocación global.
+- Recuperación interna en dos fases: código de recuperación, ticket temporal y nuevo desafío WebAuthn. Solo se permite sustituir la credencial tras consumir el desafío y verificar criptográficamente el registro; el reemplazo revoca las sesiones previas.
+- La operación antigua que consumía el código sin sustituir la credencial se ha eliminado. La recuperación no está disponible desde rutas públicas.
+- Pantalla experimental para registro, acceso, estado y cierre.
 - GitHub Actions: pruebas estáticas, compilación y smoke tests HTTP locales.
 - Ningún endpoint bancario habilitado. La web principal no se ha modificado.
 
