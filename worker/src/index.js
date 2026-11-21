@@ -48,6 +48,7 @@ export default {
   if(['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify'].includes(url.pathname))
     return json({error:'Passkey enrollment/login disabled pending integration tests and security review'},503,h);
   if(origin!==ORIGIN)return json({error:'Forbidden origin'},403,h);
+  if(request.headers.get('Content-Type')?.split(';')[0]?.trim()!=='application/json')return json({error:'JSON required'},415,h);
   if(!env.PASSKEY_COORDINATOR)return json({error:'Authentication storage unavailable'},503,h);
   if(request.method!=='POST')return json({error:'Method not allowed'},405,h);
   try {
