@@ -14,6 +14,8 @@ button{background:#102c34;color:white;cursor:pointer}button:disabled{opacity:.5}
 <input id="bootstrap" type="password" autocomplete="off" placeholder="Solo para registrar el primer dispositivo">
 <button id="register">Registrar este iPhone</button>
 <button id="login">Entrar con Face ID</button>
+<button id="statusCheck">Comprobar sesión</button>
+<button id="logout" disabled>Cerrar sesión</button>
 <p id="status" role="status">Esperando…</p>
 <small>La clave de alta y la sesión se mantienen únicamente en memoria; no se guardan en el navegador. La verificación se realiza en el servidor.</small>
 </section><script type="module">
@@ -21,6 +23,7 @@ import {startRegistration,startAuthentication} from 'https://cdn.jsdelivr.net/np
 const BASE='https://mis-finanzas-bbva.joseantonioaraujojimenez.workers.dev';
 const $=id=>document.getElementById(id);
 let sessionToken=null;
+function setSession(token){sessionToken=token;$('logout').disabled=!token;}
 function show(s){$('status').textContent=s}
 async function api(path,body,token){
  const response=await fetch(BASE+path,{method:'POST',headers:{
@@ -50,7 +53,17 @@ $('login').onclick=()=>run($('login'),async()=>{
  const {options,flow}=await api('/auth/login/options',{});
  const response=await startAuthentication({optionsJSON:options});
  const result=await api('/auth/login/verify',{flow,response});
- sessionToken=result.token;
+ setSession(result.token);
  show(result.authenticated?'Autenticación verificada. Sesión temporal creada (15 minutos).':'Autenticación no verificada.');
+});
+$('statusCheck').onclick=()=>run($('statusCheck'),async()=>{
+ if(!sessionToken){show('No hay una sesión activa en esta pantalla.');return}
+ const result=await api('/auth/status',{},sessionToken);
+ if(!result.authenticated)setSession(null);
+ show(result.authenticated?'Sesión activa.':'Sesión caducada o revocada.');
+});
+$('logout').onclick=()=>run($('logout'),async()=>{
+ try{await api('/auth/logout',{},sessionToken)}finally{setSession(null)}
+ show('Sesión cerrada.');
 });
 </script></body></html>
