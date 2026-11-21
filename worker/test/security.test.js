@@ -229,3 +229,12 @@ test('session creation, validation and global revocation use atomic transactions
  assert.match(coordinator,/path==='\/session\/validate'[\s\S]*?const valid=await store\.transaction\(async tx/);
  assert.match(coordinator,/path==='\/session\/revoke-all'[\s\S]*?await store\.transaction\(async tx/);
 });
+
+test('legacy recovery-code consumption cannot bypass verified credential replacement',()=>{
+ const coordinator=readFileSync(new URL('../src/passkey-coordinator.js',import.meta.url),'utf8');
+ const harness=readFileSync(new URL('./coordinator-harness.js',import.meta.url),'utf8');
+ assert.doesNotMatch(coordinator,/if\(path==='\/recovery\/consume'\)/);
+ assert.doesNotMatch(harness,/'\/recovery\/consume'/);
+ assert.match(coordinator,/if\(path==='\/recovery\/finalize'\)/);
+ assert.match(coordinator,/const consumed=await tx\.get\('recovery_challenge_consumed'\)/);
+});
