@@ -66,6 +66,16 @@ check(prepared.prepared===true&&typeof prepared.ticket==='string','recovery tick
 check((await op('/credential/get')).credential.id===winner.id,'preparation changed credential');
 check((await op('/recovery/finalize',{ticket:'invalid',credential:{id:'new-device',publicKey:Array(32).fill(2),counter:0}})).replaced===false,'invalid ticket replaced credential');
 check((await op('/credential/get')).credential.id===winner.id,'invalid finalization changed credential');
+// Invalid new-device data must not consume the recovery ticket or code.
+for(const invalidCredential of [
+ {id:'',publicKey:Array(32).fill(2),counter:0},
+ {id:'bad-key',publicKey:[1,2],counter:0},
+ {id:'bad-counter',publicKey:Array(32).fill(2),counter:-1},
+ {id:'bad-transport',publicKey:Array(32).fill(2),counter:0,transports:['untrusted']}
+]){
+ check((await op('/recovery/finalize',{ticket:prepared.ticket,credential:invalidCredential})).replaced===false,'invalid recovery credential accepted');
+ check((await op('/credential/get')).credential.id===winner.id,'invalid recovery changed credential');
+}
 const oldSession=await op('/session/create');
 const replacement={id:'new-device',publicKey:Array(32).fill(2),counter:0,transports:['internal']};
 const finishRace=await Promise.all(Array.from({length:8},()=>op('/recovery/finalize',{ticket:prepared.ticket,credential:replacement})));
