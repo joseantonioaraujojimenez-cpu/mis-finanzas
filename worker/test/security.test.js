@@ -106,3 +106,8 @@ test('authentication responses carry defensive browser headers',()=>{
  for(const header of ['Referrer-Policy','X-Frame-Options','Content-Security-Policy','X-Content-Type-Options'])
   assert.ok(worker.includes(header),header);
 });
+
+test('only explicitly listed authentication routes are recognized',()=>{
+ assert.match(worker,/if\(!\['\/auth\/register\/options'/);
+ assert.match(worker,/url\.pathname\)\)return json\(\{error:'Not found'\},404,h\)/);
+});
