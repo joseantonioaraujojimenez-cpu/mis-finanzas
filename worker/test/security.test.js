@@ -204,3 +204,10 @@ test('recovery primitives remain unreachable from public Worker routes',()=>{
  assert.doesNotMatch(worker,/from '\.\/recovery-code\.js'/);
  assert.match(worker,/disabled pending integration tests and security review/);
 });
+
+
+test('staging Worker name cannot overwrite the existing production Worker',()=>{
+ const config=readFileSync(new URL('../wrangler.jsonc',import.meta.url),'utf8');
+ assert.match(config,/"name":\s*"mis-finanzas-auth-staging"/);
+ assert.doesNotMatch(config,/"name":\s*"mis-finanzas-bbva"/);
+});
