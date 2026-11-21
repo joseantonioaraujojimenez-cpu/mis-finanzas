@@ -113,8 +113,19 @@ export class PasskeyCoordinator extends DurableObject {
   }
   if(path==='/session/create'){
    const token=crypto.randomUUID()+crypto.randomUUID();
-   await store.put('session:'+token,{expires:now+900000});
+   const epoch=(await store.get('session_epoch'))||0;
+   await store.put('session:'+token,{expires:now+900000,epoch});
    return Response.json({token,expiresIn:900});
+  }
+  if(path==='/session/revoke-all'){
+   // Incrementing the epoch invalidates every existing session, including
+   // sessions created on other devices, without enumerating storage keys.
+   const epoch=await store.transaction(async tx=>{
+    const next=((await tx.get('session_epoch'))||0)+1;
+    await tx.put('session_epoch',next);
+    return next;
+   });
+   return Response.json({revokedAll:true,epoch});
   }
   if(path==='/session/revoke'){
    if(typeof input.token!=='string'||input.token.length>256)return Response.json({revoked:false});
@@ -126,7 +137,8 @@ export class PasskeyCoordinator extends DurableObject {
    const key='session:'+input.token;
    const record=await store.get(key);
    if(record&&record.expires<=now){await store.delete(key);return Response.json({valid:false});}
-   return Response.json({valid:Boolean(record)});
+   const epoch=(await store.get('session_epoch'))||0;
+   return Response.json({valid:Boolean(record)&&record.epoch===epoch});
   }
   return Response.json({error:'Not found'},{status:404});
  }
