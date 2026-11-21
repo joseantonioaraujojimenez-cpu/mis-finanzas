@@ -91,3 +91,8 @@ test('coordinator bounds untrusted challenge, flow and session token sizes',()=>
  assert.match(coordinator,/input\.id\.length>128/);
  assert.match(coordinator,/input\.token\.length>256/);
 });
+
+test('unsupported HTTP methods are rejected at entry point',()=>{
+ assert.match(worker,/request\.method!=='GET' && request\.method!=='POST'/);
+ assert.match(worker,/Method not allowed/);
+});
