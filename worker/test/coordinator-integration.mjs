@@ -64,6 +64,12 @@ check((await op('/recovery/store',{digest:replacementDigest})).stored===true,'re
 check((await op('/recovery/prepare',{digest:'d'.repeat(64)})).prepared===false,'incorrect recovery code prepared');
 const prepared=await op('/recovery/prepare',{digest:replacementDigest});
 check(prepared.prepared===true&&typeof prepared.ticket==='string','recovery ticket not issued');
+const recoveryChallenge='challenge-for-recovery-device-123456';
+check((await op('/recovery/challenge/create',{ticket:'invalid',challenge:recoveryChallenge})).created===false,'invalid ticket created challenge');
+check((await op('/recovery/challenge/create',{ticket:prepared.ticket,challenge:recoveryChallenge})).created===true,'recovery challenge creation failed');
+check((await op('/recovery/challenge/consume',{ticket:'invalid'})).challenge===null,'wrong ticket consumed challenge');
+check((await op('/recovery/challenge/consume',{ticket:prepared.ticket})).challenge===recoveryChallenge,'recovery challenge mismatch');
+check((await op('/recovery/challenge/consume',{ticket:prepared.ticket})).challenge===null,'recovery challenge replay succeeded');
 check((await op('/credential/get')).credential.id===winner.id,'preparation changed credential');
 check((await op('/recovery/finalize',{ticket:'invalid',credential:{id:'new-device',publicKey:Array(32).fill(2),counter:0}})).replaced===false,'invalid ticket replaced credential');
 check((await op('/credential/get')).credential.id===winner.id,'invalid finalization changed credential');
