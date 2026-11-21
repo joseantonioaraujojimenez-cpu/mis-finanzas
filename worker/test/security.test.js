@@ -305,3 +305,23 @@ test('demo dashboard remains hidden until login and clears state on logout',()=>
  assert.match(js,/function reset\(\)\{token=null;expires=0;displayed=false/);
  assert.doesNotMatch(js,/innerHTML|localStorage|sessionStorage/);
 });
+
+test('invalid WebAuthn recovery response never reaches credential replacement',async()=>{
+ const {completeRecoveryRegistration}=await import('../src/recovery-flow.js');
+ const calls=[];
+ const coordinator=async(path)=>{
+  calls.push(path);
+  if(path==='/recovery/challenge/consume')return {challenge:'challenge-for-invalid-recovery-response'};
+  throw new Error('Credential replacement must not be called');
+ };
+ await assert.rejects(
+  completeRecoveryRegistration({
+   ticket:'t'.repeat(72),
+   response:{id:'invalid',type:'public-key',response:{}},
+   coordinator,
+   origin:'https://joseantonioaraujojimenez-cpu.github.io',
+   rpID:'joseantonioaraujojimenez-cpu.github.io'
+  })
+ );
+ assert.deepEqual(calls,['/recovery/challenge/consume']);
+});
