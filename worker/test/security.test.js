@@ -160,3 +160,12 @@ test('recovery verification requires real WebAuthn attestation and user verifica
  assert.match(recovery,/if\(!result\.verified\|\|!result\.registrationInfo\)/);
  assert.doesNotMatch(worker,/from '\.\/recovery-webauthn\.js'/);
 });
+
+test('internal recovery flow verifies WebAuthn before replacing credential',()=>{
+ const flow=readFileSync(new URL('../src/recovery-flow.js',import.meta.url),'utf8');
+ assert.match(flow,/verifyRecoveryRegistration\(\{response,challenge,origin,rpID\}\)/);
+ assert.match(flow,/const credential=await verifyRecoveryRegistration/);
+ assert.match(flow,/const \{replaced\}=await coordinator\('\/recovery\/finalize',\{ticket,credential\}\)/);
+ assert.ok(flow.indexOf('await verifyRecoveryRegistration')<flow.indexOf("await coordinator('/recovery/finalize'"));
+ assert.doesNotMatch(worker,/from '\.\/recovery-flow\.js'/);
+});
