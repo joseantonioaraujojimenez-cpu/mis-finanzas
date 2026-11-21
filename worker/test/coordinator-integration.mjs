@@ -12,6 +12,9 @@ check(typeof a.id==='string','challenge ID missing');
 const consumed=await op('/challenge/consume',{kind:'login',id:a.id});
 check(consumed.challenge===challenge,'challenge not returned');
 check((await op('/challenge/consume',{kind:'login',id:a.id})).challenge===null,'challenge replay allowed');
+const concurrent=await op('/challenge/create',{kind:'login',challenge});
+const parallel=await Promise.all(Array.from({length:8},()=>op('/challenge/consume',{kind:'login',id:concurrent.id})));
+check(parallel.filter(x=>x.challenge===challenge).length===1,'concurrent challenge replay allowed');
 const b=await op('/challenge/create',{kind:'register',challenge});
 check((await op('/challenge/consume',{kind:'login',id:b.id})).challenge===null,'wrong challenge kind accepted');
 check((await op('/challenge/consume',{kind:'register',id:b.id})).challenge===null,'wrong kind did not consume');
@@ -22,6 +25,8 @@ check((await op('/credential/get')).credential.id==='test-id','original credenti
 check((await op('/credential/counter',{id:'test-id',counter:2})).updated===true,'counter advance rejected');
 check((await op('/credential/counter',{id:'test-id',counter:2})).updated===false,'counter replay accepted');
 check((await op('/credential/counter',{id:'attacker-id',counter:3})).updated===false,'wrong credential counter accepted');
+const counterRace=await Promise.all(Array.from({length:8},()=>op('/credential/counter',{id:'test-id',counter:3})));
+check(counterRace.filter(x=>x.updated).length===1,'concurrent counter replay accepted');
 const session=await op('/session/create');
 check(typeof session.token==='string'&&session.token.length>=64,'session token missing');
 check((await op('/session/validate',{token:session.token})).valid===true,'session not valid');
