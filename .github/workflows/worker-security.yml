@@ -23,3 +23,23 @@ jobs:
       - name: Build Worker (no deployment)
         working-directory: worker
         run: npx wrangler deploy --dry-run --outdir /tmp/mis-finanzas-worker-build
+      - name: Smoke test local Worker (no banking access)
+        working-directory: worker
+        run: |
+          npx wrangler dev --local --port 8787 > /tmp/mis-finanzas-wrangler.log 2>&1 &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          READY=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8787/ >/tmp/mis-finanzas-root.json; then READY=1; break; fi
+            sleep 1
+          done
+          if [ "$READY" != "1" ]; then cat /tmp/mis-finanzas-wrangler.log; exit 1; fi
+          grep -q '"bank_connected":false' /tmp/mis-finanzas-root.json
+          STATUS=$(curl -s -o /tmp/mis-finanzas-auth.json -w '%{http_code}' \
+            -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' \
+            -H 'Content-Type: application/json' \
+            -d '{}' http://127.0.0.1:8787/auth/login/options)
+          test "$STATUS" = "503"
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8787/api/transactions)
+          test "$STATUS" = "404"
