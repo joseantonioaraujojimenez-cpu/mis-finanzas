@@ -41,3 +41,14 @@ test('Durable Object rate limiting is atomic and applied before passkey options'
  assert.match(worker,/state\(env,'\/rate\/check'/);
  assert.match(worker,/Too many attempts/);
 });
+
+test('rate limits cover both options and verification endpoints',()=>{
+ for(const route of ['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify'])
+  assert.ok(worker.includes("'"+route+"'"),route);
+ assert.match(worker,/\['\/auth\/register\/options','\/auth\/register\/verify','\/auth\/login\/options','\/auth\/login\/verify'\]\.includes\(url\.pathname\)/);
+});
+test('worker requires JSON and exact origin for authentication',()=>{
+ assert.match(worker,/origin!==ORIGIN/);
+ assert.match(worker,/application\/json/);
+ assert.match(worker,/JSON required/);
+});
