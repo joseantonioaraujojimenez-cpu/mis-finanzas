@@ -16,8 +16,8 @@ test('sandbox check does not read bank data or initiate authorization',async()=>
  const calls=[];const transport=async(url,init)=>{calls.push({url,method:init.method,redirect:init.redirect});return {ok:true,json:async()=>calls.length===1?app:{aspsps:[{country:'ES',name:'BBVA'}]}};};
  const result=await checkSandbox({appId:id,pem:privateKey,transport});assert.equal(result.verified,true);assert.equal(result.bbvaAvailable,true);assert.deepEqual(calls.map(c=>c.method),['GET','GET']);assert.equal(calls[0].url,'https://api.enablebanking.com/application');assert.match(calls[1].url,/\/aspsps\?country=ES/);assert.ok(calls.every(c=>c.redirect==='manual'));
 });
-test('production, missing callback and non-AIS apps are rejected before discovery',async()=>{
- for(const invalid of [{...app,environment:'PRODUCTION'},{...app,redirect_urls:[]},{...app,services:['AIS','PIS']}]){
+test('production, missing callback and apps without AIS are rejected before discovery',async()=>{
+ for(const invalid of [{...app,environment:'PRODUCTION'},{...app,redirect_urls:[]},{...app,services:['PIS']}]){
   assert.equal(validateSandboxApplication(invalid,id),false);let calls=0;const result=await checkSandbox({appId:id,pem:privateKey,transport:async()=>{calls++;return {ok:true,json:async()=>invalid};}});assert.equal(result.verified,false);assert.equal(calls,1);
  }
 });
@@ -47,7 +47,7 @@ test('provider failures identify only sanitized stage and HTTP code',async()=>{
 });
 
 test('Sandbox policy diagnostics expose only failed check names',async()=>{
- const invalid={...app,redirect_urls:['https://different.example/callback'],services:['AIS','PIS']};
+ const invalid={...app,redirect_urls:['https://different.example/callback'],services:['PIS']};
  const result=await checkSandbox({appId:id,pem:privateKey,transport:async()=>({ok:true,status:200,json:async()=>invalid})});
  assert.equal(result.reason,'sandbox_validation_failed');
  assert.deepEqual(result.failedChecks,['read_only','callback']);
@@ -56,11 +56,22 @@ test('Sandbox policy diagnostics expose only failed check names',async()=>{
 });
 
 test('AIS diagnostic distinguishes extra permissions, missing AIS and unexpected service formats',async()=>{
- for(const [services,expected] of [[['AIS','PIS'],'additional_services'],[['PIS'],'ais_missing'],[null,'unexpected_format'],[['AIS','AIS'],'unexpected_format']]){
+ for(const [services,expected] of [[['PIS'],'ais_missing'],[null,'unexpected_format']] ){
   const result=await checkSandbox({appId:id,pem:privateKey,transport:async()=>({ok:true,status:200,json:async()=>({...app,services})})});
   assert.equal(result.reason,'sandbox_validation_failed');
   assert.equal(result.serviceDiagnostic,expected);
   assert.deepEqual(result.failedChecks,['read_only']);
   assert.equal(result.verified,false);
  }
+});
+
+test('Sandbox with AIS and PIS permits AIS discovery but flags extra provider services',async()=>{
+ const calls=[];
+ const result=await checkSandbox({appId:id,pem:privateKey,transport:async(url)=>{calls.push(url);return {ok:true,status:200,json:async()=>calls.length===1?{...app,services:['AIS','PIS']}:{aspsps:[{name:'BBVA',country:'ES'}]}};}});
+ assert.equal(result.verified,true);
+ assert.equal(result.bbvaAvailable,true);
+ assert.equal(result.additionalServices,true);
+ assert.equal(calls.length,2);
+ assert.match(calls[1],/service=AIS/);
+ assert.ok(calls.every(url=>!url.includes('/payments')&&!url.includes('/auth')));
 });
