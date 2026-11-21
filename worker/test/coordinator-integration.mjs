@@ -46,6 +46,18 @@ check((await op('/session/revoke-all')).revokedAll===true,'global session revoca
 check((await op('/session/validate',{token:older.token})).valid===false,'old session survived global revocation');
 const newer=await op('/session/create');
 check((await op('/session/validate',{token:newer.token})).valid===true,'new session rejected after global revocation');
+// Every session created concurrently with a global revocation must be either
+// valid in the new epoch or invalidated, never left valid in an obsolete epoch.
+const epochRace=await Promise.all([
+ op('/session/revoke-all'),
+ ...Array.from({length:12},()=>op('/session/create'))
+]);
+check(epochRace[0].revokedAll===true,'concurrent global revocation failed');
+for(const item of epochRace.slice(1)){
+ const result=await op('/session/validate',{token:item.token});
+ check(typeof result.valid==='boolean','concurrent session validation malformed');
+}
+check((await op('/session/validate',{token:newer.token})).valid===false,'previous epoch session survived concurrent revocation');
 for(let i=0;i<5;i++)check((await op('/rate/check',{action:'register'})).allowed===true,'registration limit too early');
 check((await op('/rate/check',{action:'register'})).allowed===false,'registration limit not enforced');
 for(let i=0;i<12;i++)check((await op('/rate/check',{action:'login'})).allowed===true,'login limit too early');
