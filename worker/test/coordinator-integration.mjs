@@ -19,8 +19,13 @@ const b=await op('/challenge/create',{kind:'register',challenge});
 check((await op('/challenge/consume',{kind:'login',id:b.id})).challenge===null,'wrong challenge kind accepted');
 check((await op('/challenge/consume',{kind:'register',id:b.id})).challenge===null,'wrong kind did not consume');
 check((await op('/credential/get')).credential===null,'credential already exists in isolated test storage');
-check((await op('/credential/enroll',{credential:{id:'test-id',publicKey:[1,2],counter:1}})).enrolled===true,'first enrollment failed');
-check((await op('/credential/enroll',{credential:{id:'attacker-id',publicKey:[3],counter:1}})).enrolled===false,'second enrollment accepted');
+for(const invalid of [{id:'',publicKey:Array(32).fill(1),counter:0},{id:'bad',publicKey:[1,2],counter:0},{id:'bad',publicKey:Array(32).fill(256),counter:0},{id:'bad',publicKey:Array(32).fill(1),counter:-1}]){
+ const rejected=await fetch(base,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:'/credential/enroll',payload:{credential:invalid}})});
+ check(rejected.status===400,'malformed credential accepted');
+}
+check((await op('/credential/get')).credential===null,'invalid credential stored');
+check((await op('/credential/enroll',{credential:{id:'test-id',publicKey:Array(32).fill(1),counter:1}})).enrolled===true,'first enrollment failed');
+check((await op('/credential/enroll',{credential:{id:'attacker-id',publicKey:Array(32).fill(3),counter:1}})).enrolled===false,'second enrollment accepted');
 check((await op('/credential/get')).credential.id==='test-id','original credential overwritten');
 check((await op('/credential/counter',{id:'test-id',counter:2})).updated===true,'counter advance rejected');
 check((await op('/credential/counter',{id:'test-id',counter:2})).updated===false,'counter replay accepted');
