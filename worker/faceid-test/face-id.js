@@ -23,7 +23,7 @@ function render(){
  $('aisFlowReturn').disabled=busy||!token||!displayed||!aisFlow;
  $('aisFlowCancel').disabled=busy||!token||!displayed||!aisFlow;
 }
-function reset(){aisFlow=null;$('aisFlowResult').textContent='Ensayo no iniciado.';token=null;expires=0;displayed=false;consentUntil=0;$('consentAccept').checked=false;for(const id of ['demoIncome','demoExpense','demoBalance','demoCount','demoCategories','demoMoves','sessionTime','syncSummary','sandboxResult'])$(id).replaceChildren();render();}
+function reset(){token=null;expires=0;displayed=false;consentUntil=0;aisFlow=null;$('aisFlowResult').textContent='Ensayo no iniciado.';$('consentAccept').checked=false;for(const id of ['demoIncome','demoExpense','demoBalance','demoCount','demoCategories','demoMoves','sessionTime','syncSummary','sandboxResult'])$(id).replaceChildren();render();}
 const euro=n=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(n);
 function element(tag,text,klass){const e=document.createElement(tag);if(text!==undefined)e.textContent=String(text);if(klass)e.className=klass;return e;}
 function showDemo(data){
