@@ -15,8 +15,12 @@ const json = (value, status = 200, extra = {}) => new Response(JSON.stringify(va
     'X-Frame-Options':'DENY', 'Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'", ...extra }
 });
 const secureEq = (a,b) => {
-  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
-  let d=0; for(let i=0;i<a.length;i++)d |= a.charCodeAt(i)^b.charCodeAt(i); return d===0;
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const aa=new TextEncoder().encode(a), bb=new TextEncoder().encode(b);
+  // Compare the full byte strings even on length mismatch.
+  let diff=aa.length^bb.length;
+  for(let i=0;i<Math.max(aa.length,bb.length);i++)diff|=(aa[i]||0)^(bb[i]||0);
+  return diff===0;
 };
 const cors = (origin) => origin === ORIGIN ? {
   'Access-Control-Allow-Origin':ORIGIN, 'Access-Control-Allow-Methods':'GET,POST,OPTIONS',
