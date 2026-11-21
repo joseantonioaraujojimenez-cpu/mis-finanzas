@@ -70,3 +70,13 @@ jobs:
             -d '{}' http://127.0.0.1:8787/auth/status)
           test "$STATUS" = "200"
           grep -q '"authenticated":false' /tmp/mis-finanzas-status.json
+          # Disallow unexpected methods before any state access.
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE http://127.0.0.1:8787/)
+          test "$STATUS" = "405"
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X PUT \
+            -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' \
+            http://127.0.0.1:8787/auth/status)
+          test "$STATUS" = "405"
+          # Unknown and disabled endpoints must not leak caching headers.
+          curl -sD /tmp/mis-finanzas-headers.txt -o /dev/null http://127.0.0.1:8787/
+          grep -qi '^cache-control: no-store' /tmp/mis-finanzas-headers.txt
