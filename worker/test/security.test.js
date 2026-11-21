@@ -5,11 +5,11 @@ import test from 'node:test';
 const worker=readFileSync(new URL('../src/index.js',import.meta.url),'utf8');
 const web=readFileSync(new URL('../../passkey-test.html',import.meta.url),'utf8');
 
-test('passkey registration and login are disabled pending atomic challenge storage',()=>{
+test('passkey registration and login remain disabled until review',()=>{
  assert.match(worker,/FAIL CLOSED/);
  for(const route of ['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify'])
   assert.ok(worker.includes("'"+route+"'"),route+' must be disabled');
- assert.match(worker,/pending atomic storage implementation/);
+ assert.match(worker,/pending integration tests and security review/);
 });
 test('no BBVA endpoints exposed in unfinished worker',()=>{
  assert.doesNotMatch(worker,/\/api\/transactions|\/api\/accounts|\/api\/balances/);
@@ -32,4 +32,12 @@ test('Cloudflare declares Durable Object and SQLite migration',()=>{
  const config=readFileSync(new URL('../wrangler.jsonc',import.meta.url),'utf8');
  assert.match(config,/"PASSKEY_COORDINATOR"/);
  assert.match(config,/"new_sqlite_classes"/);
+});
+
+test('Durable Object rate limiting is atomic and applied before passkey options',()=>{
+ const coordinator=readFileSync(new URL('../src/passkey-coordinator.js',import.meta.url),'utf8');
+ assert.match(coordinator,/path==='\/rate\/check'/);
+ assert.match(coordinator,/const allowed=await store\.transaction/);
+ assert.match(worker,/state\(env,'\/rate\/check'/);
+ assert.match(worker,/Too many attempts/);
 });
