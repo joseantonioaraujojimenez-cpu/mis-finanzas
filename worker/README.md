@@ -21,6 +21,6 @@
 
 ## Arquitectura
 - App: https://joseantonioaraujojimenez-cpu.github.io/mis-finanzas/
-- Worker: mis-finanzas-bbva en Cloudflare.
+- Worker de pruebas: mis-finanzas-auth-staging. El Worker existente mis-finanzas-bbva se mantiene separado y no debe sustituirse.
 - RP ID: joseantonioaraujojimenez-cpu.github.io.
 - Un propietario; secretos nunca en GitHub ni en la app pública.
