@@ -41,4 +41,12 @@ for(let i=0;i<5;i++)check((await op('/rate/check',{action:'register'})).allowed=
 check((await op('/rate/check',{action:'register'})).allowed===false,'registration limit not enforced');
 for(let i=0;i<12;i++)check((await op('/rate/check',{action:'login'})).allowed===true,'login limit too early');
 check((await op('/rate/check',{action:'login'})).allowed===false,'login limit not enforced');
+// Concurrent requests must not exceed the registration quota.
+// The initial five requests above already exhausted this window.
+const rateRace=await Promise.all(Array.from({length:16},()=>op('/rate/check',{action:'register'})));
+check(rateRace.every(x=>x.allowed===false),'concurrent requests bypassed rate limit');
+// Invalid or missing session tokens must never authenticate.
+check((await op('/session/validate',{token:'not-a-real-token'})).valid===false,'unknown token authenticated');
+check((await op('/session/validate',{token:''})).valid===false,'empty token authenticated');
+check((await op('/session/validate',{token:'x'.repeat(300)})).valid===false,'oversized token authenticated');
 console.log('Durable Object integration: challenges, enrollment, counters, sessions, rate limits OK');
