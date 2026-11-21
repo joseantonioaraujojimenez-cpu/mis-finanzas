@@ -121,3 +121,5 @@ jobs:
           test "$STATUS" = "204"
           grep -qi '^access-control-allow-origin: https://joseantonioaraujojimenez-cpu.github.io' /tmp/mis-finanzas-cors.txt
           grep -qi '^vary: Origin' /tmp/mis-finanzas-cors.txt
+          # CORS preflight must not be cached by intermediaries.
+          grep -qi '^cache-control: no-store' /tmp/mis-finanzas-cors.txt
