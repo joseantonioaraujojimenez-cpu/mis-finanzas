@@ -89,8 +89,10 @@ export class PasskeyCoordinator extends DurableObject {
   }
   if(path==='/session/validate'){
    if(typeof input.token!=='string')return Response.json({valid:false});
-   const record=await store.get('session:'+input.token);
-   return Response.json({valid:Boolean(record&&record.expires>now)});
+   const key='session:'+input.token;
+   const record=await store.get(key);
+   if(record&&record.expires<=now){await store.delete(key);return Response.json({valid:false});}
+   return Response.json({valid:Boolean(record)});
   }
   return Response.json({error:'Not found'},{status:404});
  }
