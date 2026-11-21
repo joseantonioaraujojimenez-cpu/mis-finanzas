@@ -52,7 +52,7 @@ export default {
   if(!env.PASSKEY_COORDINATOR)return json({error:'Authentication storage unavailable'},503,h);
   if(request.method!=='POST')return json({error:'Method not allowed'},405,h);
   try {
-   if(url.pathname==='/auth/register/options' || url.pathname==='/auth/login/options') {
+   if(['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify'].includes(url.pathname)) {
     const action=url.pathname.includes('register')?'register':'login';
     const {allowed}=await state(env,'/rate/check',{action});
     if(!allowed)return json({error:'Too many attempts. Try later.'},429,h);
