@@ -27,17 +27,18 @@ export function validateSandboxApplication(app,expectedId){
 // Deliberately limited to two configuration/discovery endpoints; no bank authorization.
 export async function checkSandbox({appId,pem,transport=fetch}){
  if(!appId||!pem)return {configured:false,verified:false,bbvaAvailable:false,reason:'missing_configuration'};
- const failure=reason=>({configured:true,verified:false,bbvaAvailable:false,reason});
+ const failure=(reason,stage,httpStatus)=>({configured:true,verified:false,bbvaAvailable:false,reason,...(stage?{stage}:{}),...(Number.isInteger(httpStatus)?{httpStatus}:{})});
  if(typeof appId!=='string'||!ID.test(appId.trim()))return failure('invalid_app_id');
  appId=appId.trim();let jwt;
  try{jwt=await signSandboxRequest(appId,pem);}catch(e){return failure(e instanceof KeyDiagnostic?e.reason:'invalid_private_key');}
+ let stage='application';
  try{
-  const get=async path=>{const r=await transport(API+path,{method:'GET',headers:{Authorization:'Bearer '+jwt,Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(10000)});if(!r.ok){const reason=r.status===401?'provider_unauthorized':r.status===403?'provider_forbidden':r.status===404?'provider_not_found':r.status===429?'provider_rate_limited':'provider_unavailable';return {error:reason};}try{return {value:await r.json()};}catch{return {error:'provider_invalid_response'};}};
-  const app=await get('/application');if(app.error)return failure(app.error);
+  const get=async path=>{const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),10000);try{const r=await transport(API+path,{method:'GET',headers:{Authorization:'Bearer '+jwt,Accept:'application/json'},redirect:'error',signal:controller.signal});if(!r.ok){const reason=r.status===401?'provider_unauthorized':r.status===403?'provider_forbidden':r.status===404?'provider_not_found':r.status===429?'provider_rate_limited':'provider_unavailable';return {error:reason,status:r.status};}try{return {value:await r.json()};}catch{return {error:'provider_invalid_response',status:r.status};}}catch{return {error:controller.signal.aborted?'provider_timeout':'provider_network_error'};}finally{clearTimeout(timer);}};
+  const app=await get('/application');if(app.error)return failure(app.error,stage,app.status);
   if(!validateSandboxApplication(app.value,appId))return failure('sandbox_validation_failed');
-  const banks=await get('/aspsps?country=ES&psu_type=personal&service=AIS');if(banks.error)return failure(banks.error);
+  stage='aspsps';const banks=await get('/aspsps?country=ES&psu_type=personal&service=AIS');if(banks.error)return failure(banks.error,stage,banks.status);
   if(!Array.isArray(banks.value?.aspsps))return failure('provider_invalid_response');
   const bbvaAvailable=banks.value.aspsps.some(bank=>bank.country==='ES'&&typeof bank.name==='string'&&bank.name.toUpperCase()==='BBVA');
   return {configured:true,verified:true,bbvaAvailable,reason:bbvaAvailable?'ready':'bbva_not_listed'};
- }catch{return failure('provider_unavailable');}
+ }catch{return failure('provider_unavailable',stage);}
 }

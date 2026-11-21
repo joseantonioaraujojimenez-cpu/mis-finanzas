@@ -41,3 +41,7 @@ test('PEM body validation distinguishes invalid encoding without exposing key co
  const result=await checkSandbox({appId:id,pem:'-----BEGIN PRIVATE KEY-----\ninvalid body!\n-----END PRIVATE KEY-----',transport:async()=>{throw Error('Unexpected request');}});
  assert.equal(result.reason,'invalid_pem_body');assert.equal(result.verified,false);
 });
+test('provider failures identify only sanitized stage and HTTP code',async()=>{
+ const failed=await checkSandbox({appId:id,pem:privateKey,transport:async()=>({ok:false,status:400})});assert.equal(failed.reason,'provider_unavailable');assert.equal(failed.httpStatus,400);assert.equal(failed.stage,'application');
+ const network=await checkSandbox({appId:id,pem:privateKey,transport:async()=>{throw Error('private internal error');}});assert.equal(network.reason,'provider_network_error');assert.equal(network.stage,'application');assert.doesNotMatch(JSON.stringify(network),/private internal error/);
+});
