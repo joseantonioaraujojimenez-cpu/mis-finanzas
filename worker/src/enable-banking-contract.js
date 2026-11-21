@@ -2,7 +2,7 @@
 // The owner must approve the separate sandbox setup before any transport is connected.
 const uuid=/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const date=/^\d{4}-\d{2}-\d{2}$/;
-export const PLANNED_CALLBACK='https://mis-finanzas-faceid-test.joseantonioaraurojimenez.workers.dev/bank/callback';
+export const PLANNED_CALLBACK='https://mis-finanzas-faceid-test.joseantonioaraujojimenez.workers.dev/bank/callback';
 function requireId(value){if(typeof value!=='string'||!uuid.test(value))throw Error('Invalid provider identifier');return value;}
 function requireDate(value){if(typeof value!=='string'||!date.test(value)||!Number.isFinite(Date.parse(value))||new Date(value).toISOString().slice(0,10)!==value)throw Error('Invalid date');return value;}
 function spec(method,path,body){return Object.freeze({method,path,...(body===undefined?{}:{body})});}
