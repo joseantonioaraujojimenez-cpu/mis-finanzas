@@ -43,3 +43,22 @@ jobs:
           test "$STATUS" = "503"
           STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8787/api/transactions)
           test "$STATUS" = "404"
+          # Untrusted origins must not reach authentication.
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'Origin: https://example.org' \
+            -H 'Content-Type: application/json' \
+            -d '{}' http://127.0.0.1:8787/auth/status)
+          test "$STATUS" = "403"
+          # Requests must declare JSON; rejected even when auth is disabled.
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' \
+            -H 'Content-Type: text/plain' \
+            -d '{}' http://127.0.0.1:8787/auth/status)
+          test "$STATUS" = "415"
+          # Logout with no active token is safe and idempotent.
+          STATUS=$(curl -s -o /tmp/mis-finanzas-logout.json -w '%{http_code}' \
+            -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' \
+            -H 'Content-Type: application/json' \
+            -d '{}' http://127.0.0.1:8787/auth/logout)
+          test "$STATUS" = "200"
+          grep -q '"loggedOut":true' /tmp/mis-finanzas-logout.json
