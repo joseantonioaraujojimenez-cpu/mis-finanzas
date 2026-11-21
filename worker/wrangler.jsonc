@@ -1,5 +1,5 @@
 {
-  "name": "mis-finanzas-bbva",
+  "name": "mis-finanzas-auth-staging",
   "main": "src/index.js",
   "compatibility_date": "2026-11-01",
   "compatibility_flags": ["nodejs_compat"],
