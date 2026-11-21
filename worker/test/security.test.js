@@ -123,3 +123,19 @@ test('bootstrap secret is compared as UTF-8 bytes, not UTF-16 code units',()=>{
  assert.match(worker,/new TextEncoder\(\)\.encode\(b\)/);
  assert.match(worker,/diff=aa\.length\^bb\.length/);
 });
+
+
+test('recovery code has 256 bits of random entropy and is never persisted as plaintext',async()=>{
+ const {generateRecoveryCode,recoveryDigest}=await import('../src/recovery-code.js');
+ const a=generateRecoveryCode(),b=generateRecoveryCode();
+ assert.match(a,/^[a-f0-9]{8}(?:-[a-f0-9]{8}){7}$/);
+ assert.notEqual(a,b);
+ const digest=await recoveryDigest(a);
+ assert.match(digest,/^[a-f0-9]{64}$/);
+ assert.equal(digest,await recoveryDigest(a.toUpperCase()));
+ assert.notEqual(digest,await recoveryDigest(b));
+ await assert.rejects(()=>recoveryDigest('1234'),TypeError);
+ const source=readFileSync(new URL('../src/recovery-code.js',import.meta.url),'utf8');
+ assert.match(source,/crypto\.getRandomValues\(bytes\)/);
+ assert.match(source,/crypto\.subtle\.digest\('SHA-256'/);
+});
