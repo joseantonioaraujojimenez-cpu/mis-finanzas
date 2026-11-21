@@ -88,3 +88,14 @@ jobs:
           # Public root is read-only.
           STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8787/)
           test "$STATUS" = "405"
+          # Unknown authentication paths must not be accepted.
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'Origin: https://joseantonioaraujojimenez-cpu.github.io' \
+            -H 'Content-Type: application/json' \
+            -d '{}' http://127.0.0.1:8787/auth/unrecognized)
+          test "$STATUS" = "404"
+          # Preflight from an untrusted site is denied.
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X OPTIONS \
+            -H 'Origin: https://attacker.example' \
+            http://127.0.0.1:8787/auth/status)
+          test "$STATUS" = "403"
