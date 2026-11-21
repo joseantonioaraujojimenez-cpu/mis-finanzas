@@ -212,10 +212,17 @@ export class PasskeyCoordinator extends DurableObject {
   if(path==='/session/validate'){
    if(typeof input.token!=='string'||input.token.length>256)return Response.json({valid:false});
    const key='session:'+input.token;
-   const record=await store.get(key);
-   if(record&&record.expires<=now){await store.delete(key);return Response.json({valid:false});}
-   const epoch=(await store.get('session_epoch'))||0;
-   return Response.json({valid:Boolean(record)&&record.epoch===epoch});
+   // Validate expiry and the global revocation epoch in one transaction.
+   const valid=await store.transaction(async tx=>{
+    const record=await tx.get(key);
+    if(record&&record.expires<=Date.now()){
+     await tx.delete(key);
+     return false;
+    }
+    const epoch=(await tx.get('session_epoch'))||0;
+    return Boolean(record)&&record.epoch===epoch;
+   });
+   return Response.json({valid});
   }
   return Response.json({error:'Not found'},{status:404});
  }
