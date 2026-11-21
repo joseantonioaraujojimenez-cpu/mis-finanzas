@@ -96,3 +96,8 @@ test('unsupported HTTP methods are rejected at entry point',()=>{
  assert.match(worker,/request\.method!=='GET' && request\.method!=='POST'/);
  assert.match(worker,/Method not allowed/);
 });
+
+test('public service status reports passkeys disabled until review',()=>{
+ assert.match(worker,/passkeys:'disabled pending review'/);
+ assert.match(worker,/request\.method==='GET'/);
+});
