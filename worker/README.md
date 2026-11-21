@@ -1,26 +1,26 @@
-# Módulo experimental de passkeys
+# Módulo experimental de Face ID (WebAuthn)
 
-**No desplegar aún en producción ni conectar BBVA.** Código en revisión.
+**NO desplegar ni conectar BBVA todavía.** El acceso permanece bloqueado por una respuesta HTTP 503 intencional hasta completar pruebas de integración, auditoría y alta segura.
 
-## Qué existe
-- Endpoints para opciones y verificación de registro y autenticación WebAuthn.
-- Comprobación de origen, RP ID y verificación de usuario.
-- Credencial pública y sesiones efímeras en KV.
-- No hay endpoints bancarios y no se modifica la web actual.
+## Implementado en rama de desarrollo
+- WebAuthn con origen GitHub Pages y RP ID fijados.
+- Durable Object para desafíos de un solo uso, alta única, contadores y sesiones de 15 minutos.
+- Límites de intentos en registro y acceso, tanto al solicitar opciones como al verificar.
+- Cierre de sesión con revocación del token; pantalla experimental para registro, acceso, estado y cierre.
+- GitHub Actions: pruebas estáticas, compilación y smoke tests HTTP locales.
+- Ningún endpoint bancario habilitado. La web principal no se ha modificado.
 
-## Pendiente antes de desplegar
-1. Sustituir KV por Durable Object para garantizar **consumo atómico** de challenges, actualización de contadores y registro único. KV tiene consistencia eventual y las operaciones get/delete no son atómicas; en su estado actual no debe proteger información bancaria.
-2. Añadir limitación de intentos y protección contra ataques de fuerza bruta.
-3. Crear secreto aleatorio `PASSKEY_BOOTSTRAP_SECRET` solo en Cloudflare (nunca en GitHub), y mecanismo de invalidación después del alta.
-4. Sustituir `REPLACE_WITH_EXISTING_KV_NAMESPACE_ID` por el ID real del namespace de Cloudflare.
-5. Implementar interfaz del iPhone con `@simplewebauthn/browser` y verificar funcionamiento en Safari/PWA.
-6. Revisar almacenamiento de sesiones: token en memoria, no en localStorage; considerar cookies HttpOnly same-site y dominio propio para evitar problemas cross-site.
-7. Comprobar compatibilidad de `@simplewebauthn/server` y ejecutar tests antes de despliegue.
-8. Revisar documentación y condiciones reales de Enable Banking antes de conectar BBVA.
-9. Auditar registro de logs, CORS, CSRF, recuperación de acceso y revocación de credenciales.
+## Pendiente antes de permitir el alta real
+1. Pruebas funcionales WebAuthn con un navegador y un autenticador real (iPhone Safari/PWA).
+2. Revisar exhaustivamente el límite de intentos, las carreras de contadores y los mecanismos de recuperación.
+3. Configurar el secreto de alta inicial exclusivamente en Cloudflare; comprobar su invalidación tras el registro.
+4. Revisar protección CSRF, exposición de tokens, logs, cabeceras y recuperación de credenciales.
+5. Revisar el contrato y el consentimiento de Enable Banking antes de cualquier conexión bancaria.
+6. Validar costes y compatibilidad del Durable Object en la cuenta de Cloudflare.
+7. Desplegar únicamente después de revisar y retirar explícitamente el bloqueo preventivo.
 
 ## Arquitectura
-- App GitHub Pages: `https://joseantonioaraujojimenez-cpu.github.io/mis-finanzas/`
-- Worker: `mis-finanzas-bbva` en Cloudflare.
-- WebAuthn RP ID: `joseantonioaraujojimenez-cpu.github.io`
-- Solo un propietario.
+- App: https://joseantonioaraujojimenez-cpu.github.io/mis-finanzas/
+- Worker: mis-finanzas-bbva en Cloudflare.
+- RP ID: joseantonioaraujojimenez-cpu.github.io.
+- Un propietario; secretos nunca en GitHub ni en la app pública.
