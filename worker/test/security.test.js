@@ -285,6 +285,10 @@ test('manual deploy is restricted to the isolated branch, target and credential'
  assert.match(workflow,/\bwrangler deploy --config wrangler\.faceid-test\.jsonc/);
  assert.equal((workflow.match(/\bwrangler deploy\b/g)||[]).length,1);
  assert.match(workflow,/Verify isolated deployment target/);
+ assert.match(workflow,/default: unchanged/);
+ assert.match(workflow,/ENABLE_REAL_AIS.*explicitly-authorized.*ENABLE_PRODUCTION_RESTRICTED.*confirmed/);
+ assert.match(workflow,/ENABLE_REAL_AIS.*disabled.*ENABLE_PRODUCTION_RESTRICTED.*unconfirmed/);
+ assert.match(workflow,/--secrets-file/);
 });
 
 test('demo dashboard requires the isolated environment and a validated session',()=>{

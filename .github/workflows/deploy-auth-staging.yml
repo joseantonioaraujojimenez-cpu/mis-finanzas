@@ -2,6 +2,16 @@ name: Deploy isolated Face ID test Worker
 
 on:
   workflow_dispatch:
+    inputs:
+      banking_activation:
+        description: 'Read-only BBVA access: change only with explicit owner authorization'
+        type: choice
+        required: true
+        default: unchanged
+        options:
+          - unchanged
+          - enable-read-only
+          - disable-read-only
 
 permissions:
   contents: read
@@ -43,7 +53,23 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_FACEID_TEST_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BANKING_ACTIVATION: ${{ inputs.banking_activation }}
         run: |
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
-          npx wrangler deploy --config wrangler.faceid-test.jsonc
+          args=()
+          case "$BANKING_ACTIVATION" in
+            unchanged|'') ;;
+            enable-read-only|disable-read-only)
+              flags=$(mktemp)
+              trap 'rm -f "$flags"' EXIT
+              if [ "$BANKING_ACTIVATION" = enable-read-only ]; then
+                printf '%s\n' '{"ENABLE_REAL_AIS":"explicitly-authorized","ENABLE_PRODUCTION_RESTRICTED":"confirmed"}' > "$flags"
+              else
+                printf '%s\n' '{"ENABLE_REAL_AIS":"disabled","ENABLE_PRODUCTION_RESTRICTED":"unconfirmed"}' > "$flags"
+              fi
+              args+=(--secrets-file "$flags")
+              ;;
+            *) exit 1 ;;
+          esac
+          npx wrangler deploy --config wrangler.faceid-test.jsonc "${args[@]}"
