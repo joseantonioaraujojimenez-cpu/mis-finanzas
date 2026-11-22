@@ -20,5 +20,7 @@ test('invalid and rejected callback fails closed without reflecting provider tex
 test('landing is limited to isolated GET and no code exchange is implemented',async()=>{
  const {readFileSync}=await import('node:fs');
  const worker=readFileSync(new URL('../src/index.js',import.meta.url),'utf8');
- assert.doesNotMatch(worker,/from '\.\/bbva-callback-landing\.js'/);
+ assert.match(worker,/from '\.\/bbva-callback-landing\.js'/);
+ assert.match(worker,/isolated && url.pathname==='\/bank\/callback' && request.method==='GET'/);
+ assert.doesNotMatch(worker,/from '\.\/bbva-production-authorization\.js'/);
 });
