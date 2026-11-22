@@ -8,5 +8,8 @@ export async function consumeOwnerState(tx,{state,token,digest,now}){
  if(stored.state!==state||stored.callback!=='https://mis-finanzas-faceid-test.joseantonioaraujojimenez.workers.dev/bank/callback'||!Number.isFinite(stored.expiresAt))return null;
  await tx.put(key,{state,consumed:true,expiresAt:stored.expiresAt});
  if(stored.expiresAt<=now)return null;
+ // A short-lived server-only receipt allows the later verified provider
+ // result to be associated with this exact owner session, once.
+ await tx.put('bbva:ais:receipt:'+state,{ownerSessionDigest:digest,ownerEpoch:epoch,expiresAt:stored.expiresAt});
  return {state,expiresAt:stored.expiresAt,callback:stored.callback};
 }
