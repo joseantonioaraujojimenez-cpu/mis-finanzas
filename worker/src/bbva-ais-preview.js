@@ -3,10 +3,13 @@
 // No network calls, account persistence or public endpoints.
 const rules=[
  [/\b(hipoteca|alquiler)\b/,'Vivienda'],
- [/\b(supermercado|alimentacion|mercadona|carrefour|lidl)\b/,'Alimentación y hogar'],
- [/\b(gasolina|gasolinera|repsol|cepsa|transporte)\b/,'Transporte'],
- [/\b(padel|deporte|gimnasio|ocio)\b/,'Ocio y deporte'],
- [/\b(mascotas|veterinario)\b/,'Familia y mascotas'],
+ [/\b(luz|electricidad|agua|gas natural|endesa|iberdrola|naturgy)\b/,'Suministros'],
+ [/\b(supermercado|alimentacion|mercadona|carrefour|lidl|aldi|bonpreu|esclat|bonarea)\b/,'Alimentación y hogar'],
+ [/\b(gasolina|gasolinera|repsol|cepsa|transporte|peaje|parking|renfe)\b/,'Transporte'],
+ [/\b(restaurante|cafeteria|bar|pizzeria|mcdonalds|burger king)\b/,'Restauración'],
+ [/\b(padel|deporte|gimnasio|ocio|netflix|spotify|playstation)\b/,'Ocio y deporte'],
+ [/\b(mascotas|veterinario|tiendanimal|kiwoko)\b/,'Familia y mascotas'],
+ [/\b(farmacia|dentista|clinica|optica)\b/,'Salud'],
  [/\b(prestamo|comision|cuota)\b/,'Finanzas y otros']
 ];
 function classify(description,amountCents){
@@ -37,5 +40,8 @@ export function buildAisPreview({pages,accountId,scope='Personal'}){
  const safeAdd=(a,b)=>{const result=a+b;if(!Number.isSafeInteger(result))throw Error('Total exceeds safe range');return result;};
  const incomeCents=movements.reduce((n,m)=>safeAdd(n,Math.max(0,m.amountCents)),0);
  const expenseCents=movements.reduce((n,m)=>safeAdd(n,Math.max(0,-m.amountCents)),0);
- return {source:'ais-preview',bankConnected:false,requiresReview:true,accountId,movements,duplicates,reviewCount:movements.filter(m=>m.review).length,incomeCents,expenseCents,balanceCents:incomeCents-expenseCents};
+ const groups=new Map();
+ for(const m of movements){if(m.amountCents>=0)continue;const prior=groups.get(m.category)||{category:m.category,amountCents:0,count:0};prior.amountCents=safeAdd(prior.amountCents,-m.amountCents);prior.count++;groups.set(m.category,prior);}
+ const categories=[...groups.values()].sort((a,b)=>b.amountCents-a.amountCents||a.category.localeCompare(b.category,'es'));
+ return {source:'ais-preview',bankConnected:false,requiresReview:true,accountId,movements,duplicates,reviewCount:movements.filter(m=>m.review).length,incomeCents,expenseCents,balanceCents:incomeCents-expenseCents,categories};
 }

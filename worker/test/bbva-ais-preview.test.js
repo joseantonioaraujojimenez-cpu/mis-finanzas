@@ -34,3 +34,9 @@ test('aggregate monetary values must remain exactly representable',()=>{
  const movements=Array.from({length:100},(_,i)=>({...b,id:String(i),amountCents:100000000000000}));
  assert.throws(()=>buildAisPreview({accountId,pages:[{movements}]}),/safe range/);
 });
+test('category summary uses exact cents and excludes income',()=>{
+ const p=buildAisPreview({accountId,pages:[{movements:[a,b,{...a,id:'c',amountCents:-100,description:'IBERDROLA'},{...a,id:'d',amountCents:-250,description:'MERCADONA'},{...a,id:'e',amountCents:-70,description:'OTRO COMERCIO'}]}]});
+ assert.deepEqual(p.categories,[{category:'Alimentación y hogar',amountCents:2780,count:2},{category:'Suministros',amountCents:100,count:1},{category:'Por clasificar',amountCents:70,count:1}]);
+ assert.equal(p.categories.reduce((n,c)=>n+c.amountCents,0),p.expenseCents);
+ assert.equal(p.reviewCount,1);
+});

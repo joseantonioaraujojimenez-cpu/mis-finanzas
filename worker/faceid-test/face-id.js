@@ -3,6 +3,7 @@ const $=id=>document.getElementById(id);
 let token=null,ready=false,busy=false,expires=0,displayed=false,consentUntil=0;
 let aisFlow=null;
 let liveAvailable=false,liveAccountCount=0,liveRevoking=false;
+let diagnosticsVisible=false,liveSnapshot=null;
 const show=message=>{$('status').textContent=message;};
 function render(){
  $('register').disabled=!ready||busy||!!token;
@@ -17,11 +18,11 @@ function render(){
  $('consentStatus').textContent=consentActive?'Consentimiento simulado activo hasta '+new Date(consentUntil).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Sin consentimiento simulado activo.';
  $('locked').hidden=!!token&&displayed;
  $('dashboard').hidden=!token||!displayed||document.hidden;
- $('sandboxCard').hidden=!token||!displayed||document.hidden;
+ $('sandboxCard').hidden=!token||!displayed||document.hidden||(liveAvailable&&!diagnosticsVisible);
  $('sandboxCheck').disabled=busy||!token||!displayed;
- $('productionCard').hidden=!token||!displayed||document.hidden;
+ $('productionCard').hidden=!token||!displayed||document.hidden||(liveAvailable&&!diagnosticsVisible);
  $('productionCheck').disabled=busy||!token||!displayed;
- $('aisFlowCard').hidden=!token||!displayed||document.hidden;
+ $('aisFlowCard').hidden=!token||!displayed||document.hidden||(liveAvailable&&!diagnosticsVisible);
  $('aisFlowStart').disabled=busy||!token||!displayed||!!aisFlow;
  $('aisFlowReturn').disabled=busy||!token||!displayed||!aisFlow;
  $('aisFlowCancel').disabled=busy||!token||!displayed||!aisFlow;
@@ -31,8 +32,12 @@ function render(){
  $('liveBankAccount').disabled=!liveAvailable||busy||!token||!liveAccountCount;
  $('liveBankRead').disabled=!liveAvailable||busy||!token||!liveAccountCount;
  $('liveBankDisconnect').disabled=!liveAvailable||busy||!token||(!liveAccountCount&&!liveRevoking);
+ $('liveBankMonth').disabled=!liveAvailable||busy||!token||!liveAccountCount;
+ $('liveBankScope').disabled=!liveAvailable||busy||!token||!liveAccountCount;
+ for(const card of [...$('dashboard').children].slice(0,-1))card.hidden=liveAvailable&&!diagnosticsVisible;
+ $('diagnosticsToggle').textContent=diagnosticsVisible?'Ocultar herramientas de prueba':'Mostrar herramientas de prueba';
 }
-function reset(){token=null;expires=0;displayed=false;consentUntil=0;aisFlow=null;liveAccountCount=0;liveRevoking=false;$('liveBankAccept').checked=false;$('liveBankStatus').textContent=liveAvailable?'Vuelve a entrar con Face ID.':'Conexión real desactivada.';$('aisFlowResult').textContent='Ensayo no iniciado.';$('consentAccept').checked=false;for(const id of ['demoIncome','demoExpense','demoBalance','demoCount','demoCategories','demoMoves','sessionTime','syncSummary','sandboxResult','productionResult','liveBankAccount','liveBankData'])$(id).replaceChildren();render();}
+function reset(){token=null;expires=0;displayed=false;consentUntil=0;aisFlow=null;liveAccountCount=0;liveRevoking=false;diagnosticsVisible=false;liveSnapshot=null;$('liveBankAccept').checked=false;$('liveBankStatus').textContent=liveAvailable?'Vuelve a entrar con Face ID.':'Conexión real desactivada.';$('aisFlowResult').textContent='Ensayo no iniciado.';$('consentAccept').checked=false;for(const id of ['demoIncome','demoExpense','demoBalance','demoCount','demoCategories','demoMoves','sessionTime','syncSummary','sandboxResult','productionResult','liveBankAccount','liveBankData'])$(id).replaceChildren();render();}
 const euro=n=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(n);
 function element(tag,text,klass){const e=document.createElement(tag);if(text!==undefined)e.textContent=String(text);if(klass)e.className=klass;return e;}
 function showDemo(data){
@@ -115,8 +120,9 @@ async function loadLiveStatus(){
  liveAccountCount=data.consentStored===true&&Number.isInteger(data.accountCount)&&data.accountCount>0&&data.accountCount<=50?data.accountCount:0;
  liveRevoking=data.revocationPending===true;
  $('liveBankStatus').textContent=liveRevoking?'Desconexión pendiente de confirmar. No se permiten consultas.':liveAccountCount?'Consentimiento registrado. Consulta tus cuentas.':'Sin consentimiento bancario registrado.';
- $('liveBankAccount').replaceChildren();for(let i=0;i<liveAccountCount;i++){const option=element('option','Cuenta '+(i+1));option.value=String(i);$('liveBankAccount').append(option);}render();
+ const previous=$('liveBankAccount').value;$('liveBankAccount').replaceChildren();for(let i=0;i<liveAccountCount;i++){const option=element('option','Cuenta '+(i+1));option.value=String(i);$('liveBankAccount').append(option);}if(previous!==''&&Number(previous)<liveAccountCount)$('liveBankAccount').value=previous;render();
 }
+$('diagnosticsToggle').onclick=()=>{diagnosticsVisible=!diagnosticsVisible;render();};
 $('liveBankAccept').onchange=render;
 $('liveBankStart').onclick=()=>run(async()=>{
  if(!liveAvailable||!$('liveBankAccept').checked||!token)return;
@@ -126,30 +132,48 @@ $('liveBankStart').onclick=()=>run(async()=>{
  if(target.protocol!=='https:'||target.port||!(target.hostname==='enablebanking.com'||target.hostname.endsWith('.enablebanking.com')))throw Error('Destino no autorizado.');
  window.location.assign(target.href);
 });
+const localDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+function clearLiveData(){liveSnapshot=null;$('liveBankData').replaceChildren();}
+function renderLiveSnapshot(data,period){
+ const box=$('liveBankData');box.replaceChildren();box.append(element('p',`Cuenta ${Number($('liveBankAccount').value)+1} · ${$('liveBankScope').value} · ${period}`,'note'));
+ for(const b of data.balances)box.append(element('p',`Saldo actual (${b.type}): ${euro(b.amountCents/100)}`,'live-note'));
+ const metrics=element('div',undefined,'grid real-summary');
+ for(const [label,value,kind] of [['Ingresos',euro(data.incomeCents/100),'positive'],['Gastos',euro(data.expenseCents/100),'negative'],['Saldo del periodo',euro(data.balanceCents/100),data.balanceCents>=0?'positive':'negative'],['Movimientos',data.movements.length,'']]){const item=element('div',undefined,'metric');item.append(element('small',label),element('strong',value,kind));metrics.append(item);}box.append(metrics);
+ box.append(element('p',`${data.reviewCount} pendientes de clasificar · ${data.duplicates} duplicados evitados`,'note'));
+ box.append(element('h2','Gastos por categoría','section-divider'));
+ for(const c of data.categories){const wrapper=element('div',undefined,'section-title'),row=element('div',undefined,'row');row.append(element('div',c.category),element('strong',euro(c.amountCents/100)));wrapper.append(row);const bar=element('div',undefined,'bar'),fill=element('span');fill.style.width=`${Math.min(100,Math.max(0,data.expenseCents?100*c.amountCents/data.expenseCents:0))}%`;bar.append(fill);wrapper.append(bar);box.append(wrapper);}
+ if(!data.categories.length)box.append(element('p','No hay gastos en el periodo.','note'));
+ box.append(element('h2','Movimientos','section-divider'));
+ const filter=element('div',undefined,'live-filter'),search=document.createElement('input'),category=document.createElement('select'),list=element('div');search.type='search';search.placeholder='Buscar concepto';search.setAttribute('aria-label','Buscar movimientos');category.setAttribute('aria-label','Filtrar categoría');
+ for(const c of ['Todas las categorías',...new Set(data.movements.map(m=>m.category))]){const option=element('option',c);option.value=c;category.append(option);}filter.append(search,category);box.append(filter,list);
+ const draw=()=>{list.replaceChildren();const query=search.value.trim().toLocaleLowerCase('es');const matches=[...data.movements].reverse().filter(m=>(category.value==='Todas las categorías'||m.category===category.value)&&m.concept.toLocaleLowerCase('es').includes(query));for(const m of matches){const row=element('div',undefined,'row'),details=element('div',m.concept||'Sin concepto','row-details');details.append(element('small',`${m.date} · ${m.category}${m.review?' · Revisar':''}`));row.append(details,element('strong',euro(m.amountCents/100),`amount ${m.amountCents>0?'positive':'negative'}`));list.append(row);}if(!matches.length)list.append(element('p','No hay movimientos para este filtro.','note'));};search.oninput=draw;category.onchange=draw;draw();
+}
+for(const id of ['liveBankAccount','liveBankScope','liveBankMonth'])$(id).onchange=clearLiveData;
 $('liveBankRead').onclick=()=>run(async()=>{
  const session=token;if(!liveAvailable||!session||!liveAccountCount)return;
- $('liveBankData').replaceChildren();
- const today=new Date(),localDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
- const data=await api('/auth/bank/read',{accountIndex:Number($('liveBankAccount').value),scope:$('liveBankScope').value,from:localDate(new Date(today.getFullYear(),today.getMonth(),1)),to:localDate(today)},session);
+ clearLiveData();
+ const today=new Date(),period=$('liveBankMonth').value||localDate(today).slice(0,7);
+ if(!/^\d{4}-\d{2}$/.test(period)||period>localDate(today).slice(0,7))throw Error('Selecciona un mes válido.');
+ const [year,month]=period.split('-').map(Number);if(year<2000||month<1||month>12)throw Error('Selecciona un mes válido.');
+ const from=period+'-01',to=period===localDate(today).slice(0,7)?localDate(today):localDate(new Date(year,month,0));
+ const data=await api('/auth/bank/read',{accountIndex:Number($('liveBankAccount').value),scope:$('liveBankScope').value,from,to},session);
  if(session!==token||Date.now()>=expires||document.hidden)return;
- if(data.source!=='bbva-ais'||data.bankConnected!==true||!Array.isArray(data.balances)||!Array.isArray(data.movements))throw Error('Datos bancarios no disponibles.');
- const box=$('liveBankData');for(const b of data.balances)box.append(element('p',`Saldo (${b.type}): ${euro(b.amountCents/100)}`));
- box.append(element('p',`Ingresos ${euro(data.incomeCents/100)} · Gastos ${euro(data.expenseCents/100)}`));
- for(const m of [...data.movements].reverse()){const row=element('div',undefined,'row');row.append(element('div',`${m.date} · ${m.concept} · ${m.category}`),element('strong',euro(m.amountCents/100)));box.append(row);}
+ if(data.source!=='bbva-ais'||data.bankConnected!==true||!Array.isArray(data.balances)||!Array.isArray(data.movements)||!Array.isArray(data.categories))throw Error('Datos bancarios no disponibles.');
+ liveSnapshot=data;renderLiveSnapshot(liveSnapshot,period);
 });
 $('liveBankDisconnect').onclick=()=>run(async()=>{
  if(!window.confirm('¿Desconectar BBVA y revocar el consentimiento de lectura?'))return;
- $('liveBankData').replaceChildren();
+ clearLiveData();
  try{await api('/auth/bank/disconnect',{confirmDisconnect:true},token);}finally{await loadLiveStatus();}
 });
 $('sync').onclick=()=>run(async()=>{try{const data=await consentAction('sync');showDemo(data);show('Movimientos simulados actualizados sin duplicados.');}catch(e){try{await consentAction('status');}catch{reset();}throw e;}});
 $('logout').onclick=()=>run(async()=>{const session=token;reset();await api('/auth/logout',{},session);show('Sesión cerrada.');});
 setInterval(()=>{if(token&&Date.now()>=expires){reset();show('Sesión caducada.');}else if(token&&displayed){const seconds=Math.max(0,Math.ceil((expires-Date.now())/1000));$('sessionTime').textContent=`Sesión restante: ${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;if(consentUntil&&consentUntil<=Date.now()){consentUntil=0;render();}}},1000);
-document.addEventListener('visibilitychange',async()=>{if(document.hidden){$('liveBankData').replaceChildren();render();return;}if(token){displayed=false;render();try{await loadDemo();if(liveAvailable)await loadLiveStatus();}catch(e){reset();show('Sesión no disponible. Vuelve a entrar.');}}});
+document.addEventListener('visibilitychange',async()=>{if(document.hidden){clearLiveData();render();return;}if(token){displayed=false;render();try{await loadDemo();if(liveAvailable)await loadLiveStatus();}catch(e){reset();show('Sesión no disponible. Vuelve a entrar.');}}});
 window.addEventListener('pagehide',()=>{$('bootstrap').value='';reset();});
 (async()=>{try{
  const r=await fetch('/',{cache:'no-store'});const status=await r.json();
  if(!r.ok||status.isolated!==true||status.bank_connected!==false||status.passkeys!=='enabled')throw Error('Entorno de pruebas no habilitado.');
  if(!window.isSecureContext||!window.PublicKeyCredential||!await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable())throw Error('No hay autenticador de dispositivo disponible. Abre esta página en Safari con Face ID o código activado.');
- liveAvailable=status.liveAisAvailable===true;ready=true;show('Entorno preparado. Si ya has registrado tu iPhone, entra con Face ID.');
+ liveAvailable=status.liveAisAvailable===true;$('liveBankMonth').value=localDate(new Date()).slice(0,7);$('liveBankMonth').max=$('liveBankMonth').value;ready=true;show('Entorno preparado. Si ya has registrado tu iPhone, entra con Face ID.');
  }catch(e){show(e.message||'Servidor no disponible.');}finally{render();}})();
