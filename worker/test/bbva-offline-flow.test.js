@@ -4,7 +4,7 @@ import {createOfflineAisFlow} from '../src/bbva-offline-flow.js';
 import {PLANNED_CALLBACK} from '../src/enable-banking-contract.js';
 const now=Date.parse('2026-11-22T10:00:00Z'),token='a'.repeat(64),other='b'.repeat(64),sessionId='11111111-1111-4111-8111-111111111111',accountId='22222222-2222-4222-8222-222222222222';
 const provider={status:'AUTHORIZED',aspsp:{name:'BBVA',country:'ES'},access:{valid_until:new Date(now+3600000).toISOString()},accounts:[accountId]};
-function fixture(){
+function fixture(bindBrowserReturn=false){
  const map=new Map([['session:'+token,{epoch:1,expires:now+900000}],['session:'+other,{epoch:1,expires:now+900000}],['session_epoch',1]]);
  const calls=[];let callbackUrl;let override;
  const storage={transaction:async fn=>fn({get:async k=>map.get(k),put:async(k,v)=>map.set(k,v),delete:async k=>map.delete(k)})};
@@ -19,7 +19,7 @@ function fixture(){
   else throw Error('Unexpected fixture route');
   return {ok:true,status:200,json:async()=>override?override(path,data):data};
  };
- const flow=createOfflineAisFlow({storage,transport,jwt:'fixture',clock:()=>now});
+ const flow=createOfflineAisFlow({storage,transport,jwt:'fixture',clock:()=>now,bindBrowserReturn});
  return {flow,map,calls,callback:()=>callbackUrl,override:fn=>{override=fn;}};
 }
 const readOptions={token,accountId,from:'2026-11-01',to:'2026-11-22',scope:'Personal'};
@@ -42,4 +42,19 @@ test('revoked consent during read never returns a snapshot',async()=>{
  f.override((path,data)=>{if(path.endsWith('/balances'))f.map.set('session_epoch',2);return data;});
  await assert.rejects(f.flow.read(readOptions),/Consent no longer active/);
  assert.ok(f.calls.at(-1).endsWith('/balances'));
+});
+test('browser return binds a single-use ticket to the original active Face ID session',async()=>{
+ const f=fixture(true),start=await f.flow.begin({token});
+ assert.match(start.returnTicket,/^[a-f0-9]{64}$/);
+ await assert.rejects(f.flow.complete({token,callbackUrl:f.callback()}));
+ const result=await f.flow.completeFromReturn({ticket:start.returnTicket,callbackUrl:f.callback()});
+ assert.equal(result.consentVerified,true);
+ await assert.rejects(f.flow.completeFromReturn({ticket:start.returnTicket,callbackUrl:f.callback()}));
+ assert.equal(f.calls.length,3);
+});
+test('browser return does not exchange a code after session logout',async()=>{
+ const f=fixture(true),start=await f.flow.begin({token});
+ f.map.delete('session:'+token);
+ await assert.rejects(f.flow.completeFromReturn({ticket:start.returnTicket,callbackUrl:f.callback()}));
+ assert.equal(f.calls.length,1);
 });
