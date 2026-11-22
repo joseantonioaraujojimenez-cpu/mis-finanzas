@@ -15,3 +15,7 @@ test('sin sesión no hace petición',async()=>{let called=false;await assert.rej
 test('solo histórico, sin refresh por defecto',async()=>{let request;const fetcher=async(url,options)=>{request={url,options};return {ok:true,json:async()=>({transactions:[]})}};await transactions('sesion','c','2026-10',{fetcher});assert.equal(JSON.parse(request.options.body).refresh,false);assert.equal(request.options.cache,'no-store')});
 test('limitación bancaria visible',async()=>{const fetcher=async()=>({status:429,ok:false});await assert.rejects(transactions('sesion','c','2026-10',{fetcher}),/limitado/)});
 test('cuentas validadas',async()=>{const fetcher=async()=>({ok:true,json:async()=>({accounts:[{id:'c'}]})});assert.equal((await accounts('sesion',fetcher)).length,1)});
+
+test('concepto bancario como cadena se conserva entero',()=>{const x=normalize({date:'2026-10-20',amount:-5,remittance_information:'Compra supermercado'},'c');assert.equal(x.description,'Compra supermercado')});
+test('concepto bancario como lista se concatena',()=>{const x=normalize({date:'2026-10-20',amount:-5,remittance_information:['COMPRA','SUPERMERCADO']},'c');assert.equal(x.description,'COMPRA SUPERMERCADO')});
+test('no sobrescribe categoría y ámbito existentes',()=>{const row={date:'2026-10-20',amount:-5,transaction_id:'r'};const old={...normalize(row,'c'),scope:'shared',category:'Hogar'};const merged=merge([old],[row],'c');assert.equal(merged.added,0);assert.equal(merged.moves[0].scope,'shared');assert.equal(merged.moves[0].category,'Hogar')});
