@@ -3,6 +3,7 @@
 // Do not use KV get()+delete() for one-time challenges.
 import { DurableObject } from 'cloudflare:workers';
 import {transitionDemoConsent} from './demo-consent.js';
+import {consumeOwnerState} from './bbva-owner-state.js';
 
 export class PasskeyCoordinator extends DurableObject {
  async fetch(request) {
@@ -40,15 +41,7 @@ export class PasskeyCoordinator extends DurableObject {
     return Response.json({record:null},{status:403});
    const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(input.token))),b=>b.toString(16).padStart(2,'0')).join('');
    try{
-    const record=await store.transaction(async tx=>{
-     if(typeof input.state!=='string'||!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(input.state))return null;
-     const key='bbva:ais:state:'+input.state,stored=await tx.get(key);
-     if(!stored||stored.consumed)return null;
-     await tx.put(key,{state:input.state,consumed:true,expiresAt:stored.expiresAt});
-     const session=await tx.get('session:'+input.token),epoch=(await tx.get('session_epoch'))||0;
-     if(!session||session.expires<=Date.now()||session.epoch!==epoch||stored.ownerEpoch!==epoch||stored.ownerSessionDigest!==digest||stored.expiresAt<=Date.now())return null;
-     return {state:stored.state,expiresAt:stored.expiresAt,callback:stored.callback};
-    });
+    const record=await store.transaction(async tx=>consumeOwnerState(tx,{state:input.state,token:input.token,digest,now:Date.now()}));
     return Response.json({record});
    }catch{return Response.json({record:null},{status:400});}
   }

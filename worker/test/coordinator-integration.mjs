@@ -51,6 +51,16 @@ check((await op('/session/revoke-all')).revokedAll===true,'global session revoca
 check((await op('/session/validate',{token:older.token})).valid===false,'old session survived global revocation');
 const newer=await op('/session/create');
 check((await op('/session/validate',{token:newer.token})).valid===true,'new session rejected after global revocation');
+const bankRecord={state:crypto.randomUUID(),expiresAt:Date.now()+60000,consumed:false,callback:'https://mis-finanzas-faceid-test.joseantonioaraujojimenez.workers.dev/bank/callback'};
+const otherSession=await op('/session/create');
+check((await op('/bbva/ais/state/save',{token:newer.token,record:bankRecord})).saved===true,'AIS state rejected for active session');
+check((await op('/bbva/ais/state/consume',{token:otherSession.token,state:bankRecord.state})).record===null,'AIS state not bound to original session');
+const bankConsumed=await Promise.all(Array.from({length:8},()=>op('/bbva/ais/state/consume',{token:newer.token,state:bankRecord.state})));
+check(bankConsumed.filter(x=>x.record?.state===bankRecord.state).length===1,'AIS state must remain usable once by owner');
+const revokedRecord={...bankRecord,state:crypto.randomUUID()};
+check((await op('/bbva/ais/state/save',{token:otherSession.token,record:revokedRecord})).saved===true,'AIS state save failed');
+await op('/session/revoke',{token:otherSession.token});
+check((await op('/bbva/ais/state/consume',{token:otherSession.token,state:revokedRecord.state})).record===null,'revoked session consumed AIS state');
 // Every session created concurrently with a global revocation must be either
 // valid in the new epoch or invalidated, never left valid in an obsolete epoch.
 const epochRace=await Promise.all([
