@@ -16,7 +16,8 @@
     const date=String(row.booking_date||row.bookingDate||row.date||'').slice(0,10);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date+'T00:00:00Z')) || new Date(date+'T00:00:00Z').toISOString().slice(0,10)!==date) throw Error('Fecha inválida');
     const amountCents=cents(row.transaction_amount?.amount ?? row.transaction_amount ?? row.amount?.amount ?? row.amount);
-    const description=String(row.remittance_information?.[0]||row.description||row.concept||'').slice(0,250);
+    const remittance=Array.isArray(row.remittance_information)?row.remittance_information.join(' '):row.remittance_information;
+    const description=String(remittance||row.description||row.concept||'').slice(0,250);
     const remoteId=String(row.transaction_id||row.transactionId||row.entry_reference||'').trim();
     const account=String(accountId||'').trim();
     if(!account) throw Error('Cuenta requerida');
@@ -25,7 +26,7 @@
   }
   function merge(existing,remote,accountId){
     if(!Array.isArray(existing)||!Array.isArray(remote)) throw Error('Lista inválida');
-    const map=new Map(existing.map(m=>[m.id,m]));
+    const map=new Map(existing.filter(m=>m && typeof m.id==='string').map(m=>[m.id,m]));
     let added=0;
     for(const item of remote){
       const row=normalize(item,accountId);
