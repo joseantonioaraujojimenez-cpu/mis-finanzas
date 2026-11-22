@@ -10,6 +10,7 @@ import {readVerifiedConsent} from './bbva-consent-vault.js';
 import {readLiveReturnCookie} from './bbva-live-flow.js';
 import {callbackSafetyCheck} from './bbva-production-readiness.js';
 import {budgetPreferences,calculateBudgetProgress} from './finance-budget.js';
+import {historyMonths,detectRecurring} from './finance-recurring.js';
 
 export class PasskeyCoordinator extends DurableObject {
  async fetch(request) {
@@ -23,7 +24,7 @@ export class PasskeyCoordinator extends DurableObject {
    if(!liveAisEnabled(this.env))return Response.json({error:'Finance unavailable'},{status:403});
    try{return Response.json(await store.transaction(tx=>budgetPreferences(tx,{...input,now:Date.now()})));}catch{return Response.json({error:'Budget unavailable'},{status:400});}
   }
-  if(['/bbva/live/start','/bbva/live/complete','/bbva/live/status','/bbva/live/read','/bbva/live/disconnect'].includes(path)){
+  if(['/bbva/live/start','/bbva/live/complete','/bbva/live/status','/bbva/live/read','/bbva/live/disconnect','/bbva/live/recurring'].includes(path)){
    if(!liveAisEnabled(this.env))return Response.json({error:'Live AIS disabled'},{status:403});
    try{
     if(path==='/bbva/live/complete'){
@@ -48,6 +49,11 @@ export class PasskeyCoordinator extends DurableObject {
     if(path==='/bbva/live/start')return Response.json(await flow.start({token}));
     if(path==='/bbva/live/disconnect')return Response.json(await flow.disconnect({token}));
     if(!consent||!Number.isInteger(input.accountIndex)||input.accountIndex<0||input.accountIndex>=consent.accountIds.length)return Response.json({error:'Account not authorized'},{status:403});
+    if(path==='/bbva/live/recurring'){
+     const periods=historyMonths(),snapshots=[];
+     for(const period of periods)snapshots.push(await flow.read({token,accountId:consent.accountIds[input.accountIndex],scope:input.scope,...period}));
+     return Response.json({source:'bbva-ais-recurring',periods,...detectRecurring(snapshots)});
+    }
     const data=await flow.read({token,accountId:consent.accountIds[input.accountIndex],from:input.from,to:input.to,scope:input.scope});
     const {accountId,movements,...summary}=data;
     let budget=null;

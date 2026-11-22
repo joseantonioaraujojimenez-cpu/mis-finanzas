@@ -152,6 +152,21 @@ function renderLiveSnapshot(data,period){
  for(const [label,value,kind] of [['Ingresos',euro(data.incomeCents/100),'positive'],['Gastos',euro(data.expenseCents/100),'negative'],['Saldo del periodo',euro(data.balanceCents/100),data.balanceCents>=0?'positive':'negative'],['Movimientos',data.movements.length,'']]){const item=element('div',undefined,'metric');item.append(element('small',label),element('strong',value,kind));metrics.append(item);}box.append(metrics);
  box.append(element('p',`${data.reviewCount} pendientes de clasificar · ${data.duplicates} duplicados evitados`,'note'));
  renderBudget(data,period,box);
+ box.append(element('h2','Gastos recurrentes','section-divider'));
+ const recurringButton=element('button','Detectar pagos mensuales','secondary'),recurringResults=element('div');
+ box.append(element('p','Analiza los tres últimos meses completos de esta cuenta. Los resultados son sugerencias, no contratos ni cargos futuros confirmados.','note'),recurringButton,recurringResults);
+ recurringButton.onclick=()=>run(async()=>{
+  const session=token;if(!session||liveSnapshot!==data)return;
+  recurringResults.replaceChildren(element('p','Analizando historial…','note'));recurringButton.disabled=true;
+  try{
+   const result=await api('/auth/bank/recurring',{accountIndex:Number($('liveBankAccount').value),scope:$('liveBankScope').value},session);
+   if(session!==token||liveSnapshot!==data||Date.now()>=expires||document.hidden)return;
+   if(result.source!=='bbva-ais-recurring'||!Array.isArray(result.items)||!Array.isArray(result.periods))throw Error('Historial no disponible.');
+   recurringResults.replaceChildren(element('p',`Estimación mensual: ${euro(result.estimatedMonthlyCents/100)}`));
+   for(const item of result.items){const row=element('div',undefined,'row'),details=element('div',item.concept,'row-details');details.append(element('small',`${item.category} · Último cargo: ${item.lastDate} · Posible pago recurrente`));row.append(details,element('strong',euro(item.estimatedMonthlyCents/100),'amount'));recurringResults.append(row);}
+   if(!result.items.length)recurringResults.append(element('p','No se detectaron coincidencias suficientes.','note'));
+  }catch(e){if(session===token&&liveSnapshot===data)recurringResults.replaceChildren(element('p','No se pudo completar el análisis del historial.','note'));throw e;}finally{recurringButton.disabled=false;}
+ });
  box.append(element('h2','Gastos por categoría','section-divider'));
  for(const c of data.categories){const wrapper=element('div',undefined,'section-title'),row=element('div',undefined,'row');row.append(element('div',c.category),element('strong',euro(c.amountCents/100)));wrapper.append(row);const bar=element('div',undefined,'bar'),fill=element('span');fill.style.width=`${Math.min(100,Math.max(0,data.expenseCents?100*c.amountCents/data.expenseCents:0))}%`;bar.append(fill);wrapper.append(bar);box.append(wrapper);}
  if(!data.categories.length)box.append(element('p','No hay gastos en el periodo.','note'));

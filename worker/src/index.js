@@ -93,7 +93,7 @@ export default {
     ? json({service:'Mis Finanzas',bank_connected:false,passkeys:ready?'enabled':'disabled pending review',isolated,liveAisAvailable:liveReady},200,h)
     : json({error:'Method not allowed'},405,h);
   if(!url.pathname.startsWith('/auth/'))return json({error:'Not found'},404,h);
-  if(!['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify','/auth/status','/auth/logout','/auth/demo','/auth/demo/consent','/auth/sandbox/check','/auth/production/check','/auth/rehearsal/start','/auth/rehearsal/cancel','/auth/bank/start','/auth/bank/status','/auth/bank/read','/auth/bank/disconnect','/auth/bank/budget'].includes(url.pathname))return json({error:'Not found'},404,h);
+  if(!['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify','/auth/status','/auth/logout','/auth/demo','/auth/demo/consent','/auth/sandbox/check','/auth/production/check','/auth/rehearsal/start','/auth/rehearsal/cancel','/auth/bank/start','/auth/bank/status','/auth/bank/read','/auth/bank/disconnect','/auth/bank/budget','/auth/bank/recurring'].includes(url.pathname))return json({error:'Not found'},404,h);
   if(url.pathname.startsWith('/auth/bank/')&&!liveReady)return json({error:'Not found'},404,h);
   if(['/auth/rehearsal/start','/auth/rehearsal/cancel'].includes(url.pathname) && !ready)return json({error:'Not found'},404,h);
   if(url.pathname==='/auth/production/check' && !ready)return json({error:'Not found'},404,h);
@@ -119,6 +119,7 @@ export default {
      return json({authorizationUrl:result.authorizationUrl},200,{...h,'Set-Cookie':result.setCookie});
     }
     if(url.pathname==='/auth/bank/status')return json(await state(env,'/bbva/live/status',{token}),200,h);
+    if(url.pathname==='/auth/bank/recurring')return json(await state(env,'/bbva/live/recurring',{token,accountIndex:body.accountIndex,scope:body.scope}),200,h);
     if(url.pathname==='/auth/bank/budget')return json(await state(env,'/finance/budget',{token,accountIndex:body.accountIndex,scope:body.scope,month:body.month,action:body.action,budgetCents:body.budgetCents,savingsGoalCents:body.savingsGoalCents}),200,h);
     if(url.pathname==='/auth/bank/disconnect'){
      if(body.confirmDisconnect!==true)return json({error:'Disconnect confirmation required'},400,h);
