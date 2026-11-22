@@ -27,15 +27,22 @@ export function parseTransactions(payload){
  if(!payload||!Array.isArray(payload.transactions)||payload.transactions.length>MAX_MOVEMENTS)throw Error('Invalid transaction response');
  const seen=new Set();
  const movements=payload.transactions.map(t=>{
-  if(!t||typeof t.transaction_id!=='string'||t.transaction_id.length<1||t.transaction_id.length>256||seen.has(t.transaction_id))throw Error('Invalid or duplicate transaction');
-  seen.add(t.transaction_id);
-  const cents=amount(t.transaction_amount);
+  // transaction_id is not stable across fetches; entry_reference is the
+  // documented account-scoped immutable reference. Do not guess missing IDs.
+  if(!t||typeof t.entry_reference!=='string'||!t.entry_reference.trim()||t.entry_reference.length>256||seen.has(t.entry_reference))throw Error('Invalid or duplicate transaction reference');
+  seen.add(t.entry_reference);
+  if(t.status!=='BOOK'||!['CRDT','DBIT'].includes(t.credit_debit_indicator))throw Error('Invalid booked transaction direction');
+  const rawCents=amount(t.transaction_amount);
+  if(rawCents<0&&t.credit_debit_indicator==='CRDT')throw Error('Conflicting credit amount');
+  const cents=t.credit_debit_indicator==='DBIT'?-Math.abs(rawCents):rawCents;
   const booked=date(t.booking_date);
-  const description=typeof t.remittance_information==='string'?t.remittance_information.slice(0,300):'';
-  return Object.freeze({id:t.transaction_id,date:booked,amountCents:cents,description});
+  const remittance=t.remittance_information;
+  if(remittance!=null&&(!Array.isArray(remittance)||remittance.length>100||!remittance.every(s=>typeof s==='string'&&s.length<=4096)))throw Error('Invalid transaction description');
+  const description=(remittance||[]).join(' ').slice(0,300);
+  return Object.freeze({id:t.entry_reference,date:booked,amountCents:cents,description});
  });
  const continuation=payload.continuation_key;
- if(continuation!==undefined&&(typeof continuation!=='string'||continuation.length<1||continuation.length>2048))throw Error('Invalid pagination');
+ if(continuation!=null&&(typeof continuation!=='string'||continuation.length<1||continuation.length>2048))throw Error('Invalid pagination');
  return Object.freeze({movements,continuation:continuation||null});
 }
 export async function readMockableAccount({session,accountId,now,from,to,transport,jwt}){

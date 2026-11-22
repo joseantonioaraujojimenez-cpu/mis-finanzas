@@ -4,7 +4,7 @@ import {parseBalances,parseTransactions,readMockableAccount,readMockableAccountS
 const account='11111111-1111-4111-8111-111111111111',now=Date.parse('2026-11-21T12:00:00Z');
 const session={status:'AUTHORIZED',aspsp:{name:'BBVA',country:'ES'},access:{valid_until:'2026-11-22T12:00:00Z'},accounts:[account]};
 const balance={balances:[{balance_type:'closingBooked',balance_amount:{amount:'1025.50',currency:'EUR'}}]};
-const transactions={transactions:[{transaction_id:'t-1',booking_date:'2026-11-21',transaction_amount:{amount:'-25.30',currency:'EUR'},remittance_information:'Compra'}],continuation_key:'next'};
+const transactions={transactions:[{entry_reference:'t-1',transaction_id:'changing-details-id',status:'BOOK',credit_debit_indicator:'DBIT',booking_date:'2026-11-21',transaction_amount:{amount:'25.30',currency:'EUR'},remittance_information:['Compra']}],continuation_key:'next'};
 test('mocked EUR balances and debit movements are parsed into cents',()=>{
  assert.deepEqual(parseBalances(balance),[{type:'closingBooked',amountCents:102550}]);
  const result=parseTransactions(transactions);
@@ -51,6 +51,14 @@ test('snapshot does not return incomplete data on repeated pagination or page li
  await assert.rejects(readMockableAccountSnapshot({...snapshotOptions,transport}),/Repeated continuation/);
  await assert.rejects(readMockableAccountSnapshot({...snapshotOptions,transport,maxPages:1}),/pagination limit/);
 });
+test('empty intermediate pages continue until explicit null key',async()=>{
+ let calls=0;
+ const snapshot=await readMockableAccountSnapshot({...snapshotOptions,transport:async url=>{
+  calls++;if(calls>1)assert.equal(new URL(url).searchParams.get('transaction_status'),'BOOK');
+  return {ok:true,status:200,json:async()=>calls===1?balance:calls===2?{transactions:[],continuation_key:'more'}:{transactions:transactions.transactions,continuation_key:null}};
+ }});
+ assert.equal(calls,3);assert.equal(snapshot.movements.length,1);
+});
 test('snapshot stops reading when consent expires',async()=>{
  let calls=0;
  await assert.rejects(readMockableAccountSnapshot({...snapshotOptions,clock:()=>calls?Date.parse(session.access.valid_until):now,transport:async()=>{calls++;return {ok:true,status:200,json:async()=>balance};}}),/Account not authorized/);
@@ -61,4 +69,15 @@ test('money is rounded symmetrically with exact decimal arithmetic',()=>{
  const balances=amounts.slice(0,3).map(amount=>({balance_type:'booked',balance_amount:{amount,currency:'EUR'}}));
  assert.deepEqual(parseBalances({balances}).map(x=>x.amountCents),[101,-101,0]);
  assert.throws(()=>parseBalances({balances:[{balance_type:'booked',balance_amount:{amount:amounts[3],currency:'EUR'}}]}),/safe range/);
+});
+test('provider direction, stable references and explicit null pagination are respected',()=>{
+ const debit=transactions.transactions[0];
+ const credit={...debit,entry_reference:'t-2',credit_debit_indicator:'CRDT',remittance_information:['NÓMINA','Noviembre']};
+ const result=parseTransactions({transactions:[debit,credit],continuation_key:null});
+ assert.deepEqual(result.movements.map(m=>m.amountCents),[-2530,2530]);
+ assert.equal(result.movements[1].description,'NÓMINA Noviembre');
+ assert.equal(result.movements[0].id,'t-1');
+ assert.equal(result.continuation,null);
+ assert.throws(()=>parseTransactions({transactions:[{...debit,entry_reference:null}]}));
+ assert.throws(()=>parseTransactions({transactions:[{...debit,status:'PDNG'}]}));
 });

@@ -28,7 +28,7 @@ export function balancesSpec(session,accountId,now){return spec('GET','/accounts
 export function transactionsSpec(session,accountId,{from,to,continuation},now){
  const id=authorizedAccount(session,accountId,now);requireDate(from);requireDate(to);
  if(from>to||Date.parse(to)-Date.parse(from)>31*86400000)throw Error('Invalid transaction interval');
- const q=new URLSearchParams({date_from:from,date_to:to});
+ const q=new URLSearchParams({date_from:from,date_to:to,transaction_status:'BOOK'});
  if(continuation!==undefined){if(typeof continuation!=='string'||!continuation||continuation.length>2048)throw Error('Invalid continuation');q.set('continuation_key',continuation);}
  return spec('GET','/accounts/'+id+'/transactions?'+q.toString());
 }
