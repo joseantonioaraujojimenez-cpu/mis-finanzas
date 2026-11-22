@@ -52,6 +52,27 @@ export class PasskeyCoordinator extends DurableObject {
     return Response.json({record});
    }catch{return Response.json({record:null},{status:400});}
   }
+  // Atomic bank authorization callback: state is bound to the initiating
+  // Face ID session. Browser callback must present an HttpOnly nonce cookie
+  // whose digest was saved at initiation; no bearer token travels to BBVA.
+  if(path==='/bbva/ais/callback/consume'){
+   const {state,nonce}=input;
+   if(typeof state!=='string'||!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(state)||typeof nonce!=='string'||nonce.length<32||nonce.length>256)return Response.json({record:null});
+   const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(nonce))),b=>b.toString(16).padStart(2,'0')).join('');
+   const record=await store.transaction(async tx=>{
+    const key='bbva:ais:state:'+state,stored=await tx.get(key);
+    if(!stored||stored.consumed)return null;
+    await tx.put(key,{state,consumed:true,expiresAt:stored.expiresAt});
+    if(stored.expiresAt<=Date.now()||stored.nonceDigest!==digest)return null;
+    const epoch=(await tx.get('session_epoch'))||0;
+    if(stored.ownerEpoch!==epoch)return null;
+    // The initiating session must still be valid; no token stored in state.
+    // The authorization flow is not enabled until this can be verified
+    // without passing the session bearer token through the browser redirect.
+    return null;
+   });
+   return Response.json({record});
+  }
   if(path==='/health/check'){
    return Response.json({ok:true});
   }
