@@ -1,1 +1,24 @@
-const CACHE='mis-finanzas-local-v13';const ASSETS=['./','./index.html','./manifest.webmanifest','./icon.svg'];self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)));self.skipWaiting()});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));self.clients.claim()});self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(fetch(e.request).then(r=>{if(r.ok&&new URL(e.request.url).origin===self.location.origin){let clone=r.clone();caches.open(CACHE).then(c=>c.put(e.request,clone))}return r}).catch(()=>caches.match(e.request)))})
+const CACHE='mis-finanzas-integracion-v14';
+const ASSETS=['./','./index.html','./manifest.webmanifest','./icon.svg','./integracion/bbva-api.js','./integracion/bbva-movimientos.js'];
+self.addEventListener('install',event=>{
+ event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)));
+ self.skipWaiting();
+});
+self.addEventListener('activate',event=>{
+ event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))));
+ self.clients.claim();
+});
+self.addEventListener('fetch',event=>{
+ const req=event.request;
+ if(req.method!=='GET')return;
+ const url=new URL(req.url);
+ // Never intercept, cache or replay any banking or authenticated API traffic.
+ if(url.origin!==self.location.origin||url.pathname.startsWith('/bank/')||req.headers.has('Authorization'))return;
+ event.respondWith(fetch(req).then(response=>{
+  if(response.ok && response.type==='basic'){
+   const copy=response.clone();
+   event.waitUntil(caches.open(CACHE).then(cache=>cache.put(req,copy)));
+  }
+  return response;
+ }).catch(()=>caches.match(req)));
+});
