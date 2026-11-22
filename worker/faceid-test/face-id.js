@@ -88,23 +88,20 @@ $('productionCheck').onclick=()=>run(async()=>{
   $('productionResult').textContent=messages[result.reason]||'Resultado de verificación no reconocido.';
  }catch(e){if(session===token)$('productionResult').textContent='No se ha podido completar la verificación.';throw e;}
 });
-// Purely local UI rehearsal. No provider request, bank URL, callback or code exchange.
+// Same-origin rehearsal. No provider request, bank URL or code exchange.
 $('aisFlowStart').onclick=()=>run(async()=>{
  const session=token;
- const status=await api('/auth/status',{},session);
- if(!status.authenticated||session!==token||Date.now()>=expires)throw Error('Inicia sesión con Face ID.');
- aisFlow={session,expiresAt:Math.min(expires,Date.now()+120000),state:crypto.randomUUID()};
+ const status=await api('/auth/rehearsal/start',{},session);
+ if(status.rehearsal!==true||status.bankConnected!==false||session!==token||Date.now()>=expires)throw Error('Inicia sesión con Face ID.');
+ aisFlow={session,expiresAt:Math.min(expires,Date.now()+120000)};
  $('aisFlowResult').textContent='Paso 1/2: solicitud simulada creada. En una conexión real se abriría el consentimiento del banco. No se ha contactado con BBVA.';
 });
 $('aisFlowReturn').onclick=()=>run(async()=>{
  const flow=aisFlow;
  if(!flow||flow.session!==token||Date.now()>=flow.expiresAt){aisFlow=null;throw Error('Ensayo caducado. Vuelve a empezar.');}
- const status=await api('/auth/status',{},token);
- if(!status.authenticated){aisFlow=null;throw Error('La sesión Face ID ya no está activa.');}
- aisFlow=null;
- $('aisFlowResult').textContent='Paso 2/2: retorno simulado completado. No se ha intercambiado ningún código ni conectado ninguna cuenta.';
+ window.location.assign('/bank/rehearsal-return');
 });
-$('aisFlowCancel').onclick=()=>{aisFlow=null;$('aisFlowResult').textContent='Ensayo cancelado. No se ha enviado información bancaria.';render();};
+$('aisFlowCancel').onclick=()=>run(async()=>{await api('/auth/rehearsal/cancel',{},token);aisFlow=null;$('aisFlowResult').textContent='Ensayo cancelado. No se ha enviado información bancaria.';render();});
 $('sync').onclick=()=>run(async()=>{try{const data=await consentAction('sync');showDemo(data);show('Movimientos simulados actualizados sin duplicados.');}catch(e){try{await consentAction('status');}catch{reset();}throw e;}});
 $('logout').onclick=()=>run(async()=>{const session=token;reset();await api('/auth/logout',{},session);show('Sesión cerrada.');});
 setInterval(()=>{if(token&&Date.now()>=expires){reset();show('Sesión caducada.');}else if(token&&displayed){const seconds=Math.max(0,Math.ceil((expires-Date.now())/1000));$('sessionTime').textContent=`Sesión restante: ${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;if(consentUntil&&consentUntil<=Date.now()){consentUntil=0;render();}}},1000);

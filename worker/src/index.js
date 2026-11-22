@@ -3,6 +3,7 @@ import {demoBankSnapshot} from './bank-demo.js';
 import {checkSandbox} from './enable-sandbox-check.js';
 import {checkProductionIdentity} from './bbva-production-identity.js';
 import {safeBankCallbackLanding} from './bbva-callback-landing.js';
+import {RETURN_PATH,rehearsalCookie,readRehearsalCookie,rehearsalLanding} from './bbva-rehearsal-return.js';
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -70,13 +71,20 @@ export default {
   // Isolated callback landing only: authorization codes are deliberately discarded.
   // Never expose this route on the production Worker or exchange a code here.
   if(isolated && url.pathname==='/bank/callback' && request.method==='GET')return safeBankCallbackLanding(url.href);
+  if(ready && url.pathname===RETURN_PATH && request.method==='GET'){
+   const ticket=readRehearsalCookie(request.headers.get('Cookie'));
+   let verified=false;
+   if(ticket)try{verified=(await state(env,'/bbva/rehearsal/consume',{ticket})).verified===true;}catch{}
+   return rehearsalLanding(verified);
+  }
   if(request.method==='OPTIONS')return new Response(null,{status:origin===allowedOrigin?204:403,headers:{'Cache-Control':'no-store',...h}});
   if(request.method!=='GET' && request.method!=='POST')return json({error:'Method not allowed'},405,h);
   if(url.pathname==='/')return request.method==='GET'
     ? json({service:'Mis Finanzas',bank_connected:false,passkeys:ready?'enabled':'disabled pending review',isolated},200,h)
     : json({error:'Method not allowed'},405,h);
   if(!url.pathname.startsWith('/auth/'))return json({error:'Not found'},404,h);
-  if(!['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify','/auth/status','/auth/logout','/auth/demo','/auth/demo/consent','/auth/sandbox/check','/auth/production/check'].includes(url.pathname))return json({error:'Not found'},404,h);
+  if(!['/auth/register/options','/auth/register/verify','/auth/login/options','/auth/login/verify','/auth/status','/auth/logout','/auth/demo','/auth/demo/consent','/auth/sandbox/check','/auth/production/check','/auth/rehearsal/start','/auth/rehearsal/cancel'].includes(url.pathname))return json({error:'Not found'},404,h);
+  if(['/auth/rehearsal/start','/auth/rehearsal/cancel'].includes(url.pathname) && !ready)return json({error:'Not found'},404,h);
   if(url.pathname==='/auth/production/check' && !ready)return json({error:'Not found'},404,h);
   if(url.pathname==='/auth/sandbox/check' && !ready)return json({error:'Not found'},404,h);
   if(url.pathname==='/auth/demo' && !ready)return json({error:'Not found'},404,h);
@@ -159,6 +167,18 @@ export default {
     return json({loggedOut:true},200,h);
    }
    if(url.pathname==='/auth/status')return json({authenticated:await isAuthorized(request,env)},200,h);
+   if(url.pathname==='/auth/rehearsal/start'){
+    const token=request.headers.get('Authorization')?.replace(/^Bearer /,'');
+    const {ticket}=await state(env,'/bbva/rehearsal/issue',{token});
+    if(!ticket)return json({error:'Session expired or invalid'},401,h);
+    return json({rehearsal:true,bankConnected:false},200,{...h,'Set-Cookie':rehearsalCookie(ticket)});
+   }
+   if(url.pathname==='/auth/rehearsal/cancel'){
+    const token=request.headers.get('Authorization')?.replace(/^Bearer /,'');
+    if(!await isAuthorized(request,env))return json({error:'Session expired or invalid'},401,h);
+    await state(env,'/bbva/rehearsal/cancel',{token});
+    return json({rehearsal:true,bankConnected:false},200,{...h,'Set-Cookie':rehearsalCookie(null)});
+   }
    if(url.pathname==='/auth/production/check'){
     if(!await isAuthorized(request,env))return json({error:'Session expired or invalid'},401,h);
     const result=await checkProductionIdentity({appId:env.ENABLE_PRODUCTION_APP_ID,pem:env.ENABLE_PRODUCTION_PRIVATE_KEY});

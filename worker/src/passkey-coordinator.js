@@ -4,6 +4,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import {transitionDemoConsent} from './demo-consent.js';
 import {consumeOwnerState} from './bbva-owner-state.js';
+import {issueRehearsalTicket,consumeRehearsalTicket,cancelRehearsalTicket} from './bbva-rehearsal-return.js';
 
 export class PasskeyCoordinator extends DurableObject {
  async fetch(request) {
@@ -13,6 +14,9 @@ export class PasskeyCoordinator extends DurableObject {
   try{input=await request.json()}catch{return Response.json({error:'Invalid JSON'},{status:400})}
   const store=this.ctx.storage;
   const now=Date.now();
+  if(path==='/bbva/rehearsal/issue')return Response.json({ticket:await issueRehearsalTicket(store,input.token,now)});
+  if(path==='/bbva/rehearsal/consume')return Response.json({verified:await consumeRehearsalTicket(store,input.ticket,now)});
+  if(path==='/bbva/rehearsal/cancel')return Response.json({cancelled:await cancelRehearsalTicket(store,input.token)});
   // Internal AIS state operations only. No public Worker route calls these yet.
   // They must not be exposed until the caller is bound to an authenticated owner session.
   if(path==='/bbva/ais/state/save'){
