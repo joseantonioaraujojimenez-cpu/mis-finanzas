@@ -17,7 +17,7 @@ test('invalid and rejected callback fails closed without reflecting provider tex
  assert.equal(r.status,400);
  assert.doesNotMatch(await r.text(),/SENSITIVE|access_denied/);
 });
-test('landing is not wired to public routes until exchange is implemented',async()=>{
+test('landing is limited to isolated GET and no code exchange is implemented',async()=>{
  const {readFileSync}=await import('node:fs');
  const worker=readFileSync(new URL('../src/index.js',import.meta.url),'utf8');
  assert.doesNotMatch(worker,/from '\.\/bbva-callback-landing\.js'/);
