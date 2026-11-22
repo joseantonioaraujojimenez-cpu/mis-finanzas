@@ -1,0 +1,26 @@
+name: Pruebas de integración BBVA
+on:
+  push:
+    branches:
+      - integracion-bbva-segura-20261122
+  pull_request:
+    paths:
+      - 'integracion/**'
+      - '.github/workflows/pruebas-bbva.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Comprobar sintaxis
+        run: |
+          node --check integracion/bbva-api.js
+          node --check integracion/bbva-movimientos.js
+          node --check integracion/bbva.test.cjs
+      - name: Pruebas sin acceder a BBVA
+        run: node --test integracion/bbva.test.cjs
