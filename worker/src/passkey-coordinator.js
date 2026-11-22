@@ -11,6 +11,7 @@ import {readLiveReturnCookie} from './bbva-live-flow.js';
 import {callbackSafetyCheck} from './bbva-production-readiness.js';
 import {budgetPreferences,calculateBudgetProgress} from './finance-budget.js';
 import {historyMonths,detectRecurring} from './finance-recurring.js';
+import {safeReadCode} from './bbva-read-errors.js';
 
 export class PasskeyCoordinator extends DurableObject {
  async fetch(request) {
@@ -39,7 +40,7 @@ export class PasskeyCoordinator extends DurableObject {
     const token=input.token;
     if(typeof token!=='string'||token.length<32||token.length>256)return Response.json({error:'Owner authentication required'},{status:401});
     const authenticated=await store.transaction(async tx=>{const session=await tx.get('session:'+token),epoch=(await tx.get('session_epoch'))||0;return Boolean(session&&session.epoch===epoch&&session.expires>Date.now());});
-    if(!authenticated)return Response.json({error:'Owner authentication required'},{status:401});
+    if(!authenticated)return Response.json({error:'Owner authentication required',code:'OWNER_SESSION'},{status:401});
     const consent=await store.transaction(tx=>readVerifiedConsent(tx,{token,now:Date.now()}));
     if(path==='/bbva/live/status'){
      const stored=await store.get('bbva:ais:consent');
@@ -48,7 +49,7 @@ export class PasskeyCoordinator extends DurableObject {
     const flow=await openLiveAisFlow({env:this.env,storage:store,transport:fetch});
     if(path==='/bbva/live/start')return Response.json(await flow.start({token}));
     if(path==='/bbva/live/disconnect')return Response.json(await flow.disconnect({token}));
-    if(!consent||!Number.isInteger(input.accountIndex)||input.accountIndex<0||input.accountIndex>=consent.accountIds.length)return Response.json({error:'Account not authorized'},{status:403});
+    if(!consent||!Number.isInteger(input.accountIndex)||input.accountIndex<0||input.accountIndex>=consent.accountIds.length)return Response.json({error:'Account not authorized',code:!consent?'BANK_CONSENT':'BANK_UNAVAILABLE'},{status:403});
     if(path==='/bbva/live/recurring'){
      const periods=historyMonths(),snapshots=[];
      for(const period of periods)snapshots.push(await flow.read({token,accountId:consent.accountIds[input.accountIndex],scope:input.scope,...period}));
@@ -63,7 +64,7 @@ export class PasskeyCoordinator extends DurableObject {
      budget={...preferences,...calculateBudgetProgress({...preferences,expenseCents:data.expenseCents,incomeCents:data.incomeCents,daysElapsed,daysInMonth})};
     }
     return Response.json({...summary,budget,source:'bbva-ais',bankConnected:true,movements:movements.map(({accountId,id,...movement})=>movement)});
-   }catch{return Response.json({error:'Live AIS unavailable'},{status:400});}
+   }catch(error){return Response.json({error:'Live AIS unavailable',code:safeReadCode(error)},{status:400});}
   }
   if(path==='/bbva/rehearsal/issue')return Response.json({ticket:await issueRehearsalTicket(store,input.token,now)});
   if(path==='/bbva/rehearsal/consume')return Response.json({verified:await consumeRehearsalTicket(store,input.ticket,now)});

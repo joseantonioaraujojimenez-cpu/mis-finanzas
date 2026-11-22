@@ -1,6 +1,7 @@
 // Read-only, offline AIS response validation. No bank connection or public routes.
 import {balancesSpec,transactionsSpec} from './enable-banking-contract.js';
 import {buildAisPreview} from './bbva-ais-preview.js';
+import {BankReadError,providerReadError} from './bbva-read-errors.js';
 const MAX_MOVEMENTS=500;
 const money=/^-?\d{1,13}(?:\.\d{1,5})?$/;
 function amount(value){
@@ -64,24 +65,26 @@ export async function readMockableAccountSnapshot({session,accountId,from,to,sco
  if(!['Personal','Compartido'].includes(scope)||!Number.isInteger(maxPages)||maxPages<1||maxPages>24)throw Error('Invalid snapshot options');
  const request=async spec=>{
   const response=await transport('https://api.enablebanking.com'+spec.path,{method:'GET',headers:{Authorization:'Bearer '+jwt,Accept:'application/json'},redirect:'manual'});
-  if(!response||response.ok!==true||response.status!==200||typeof response.json!=='function')throw Error('AIS provider rejected read');
+  if(!response||response.ok!==true||response.status!==200||typeof response.json!=='function')throw await providerReadError(response);
   const type=response.headers?.get?.('content-type');
-  if(type!=null&&!/^application\/json(?:;|$)/i.test(type))throw Error('Unexpected provider response');
+  if(type!=null&&!/^application\/json(?:;|$)/i.test(type))throw new BankReadError('BANK_DATA');
   return response.json();
  };
  // Validate both request contracts before the first read.
  const start=clock();
  const balanceRequest=balancesSpec(session,accountId,start);
  transactionsSpec(session,accountId,{from,to},start);
- const balances=parseBalances(await request(balanceRequest));
+ const balanceBody=await request(balanceRequest);let balances;
+ try{balances=parseBalances(balanceBody);}catch{throw new BankReadError('BANK_DATA');}
  const pages=[],seen=new Set();let continuation;
  do{
-  if(pages.length>=maxPages)throw Error('AIS pagination limit exceeded');
-  const page=parseTransactions(await request(transactionsSpec(session,accountId,{from,to,continuation},clock())));
-  if(page.movements.some(m=>m.date<from||m.date>to))throw Error('Movement outside requested interval');
+  if(pages.length>=maxPages)throw new BankReadError('BANK_PAGES');
+  const pageBody=await request(transactionsSpec(session,accountId,{from,to,continuation},clock()));let page;
+  try{page=parseTransactions(pageBody);}catch{throw new BankReadError('BANK_DATA');}
+  if(page.movements.some(m=>m.date<from||m.date>to))throw new BankReadError('BANK_DATA');
   pages.push(page);
   continuation=page.continuation||undefined;
-  if(continuation){if(seen.has(continuation))throw Error('Repeated continuation');seen.add(continuation);}
+  if(continuation){if(seen.has(continuation))throw new BankReadError('BANK_PAGES');seen.add(continuation);}
  }while(continuation);
  balancesSpec(session,accountId,clock());
  return {balances,...buildAisPreview({pages,accountId,scope})};

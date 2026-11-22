@@ -48,8 +48,8 @@ test('snapshot reads all pages and combines only the authorized account',async()
 });
 test('snapshot does not return incomplete data on repeated pagination or page limit',async()=>{
  const transport=async url=>({ok:true,status:200,json:async()=>url.includes('/balances')?balance:transactions});
- await assert.rejects(readMockableAccountSnapshot({...snapshotOptions,transport}),/Repeated continuation/);
- await assert.rejects(readMockableAccountSnapshot({...snapshotOptions,transport,maxPages:1}),/pagination limit/);
+ await assert.rejects(readMockableAccountSnapshot({...snapshotOptions,transport}),{code:'BANK_PAGES'});
+ await assert.rejects(readMockableAccountSnapshot({...snapshotOptions,transport,maxPages:1}),{code:'BANK_PAGES'});
 });
 test('empty intermediate pages continue until explicit null key',async()=>{
  let calls=0;
@@ -80,4 +80,10 @@ test('provider direction, stable references and explicit null pagination are res
  assert.equal(result.continuation,null);
  assert.throws(()=>parseTransactions({transactions:[{...debit,entry_reference:null}]}));
  assert.throws(()=>parseTransactions({transactions:[{...debit,status:'PDNG'}]}));
+});
+test('October full 31-day interval is accepted and provider period rejection is distinguished',async()=>{
+ const options={...snapshotOptions,from:'2026-10-01',to:'2026-10-31'};
+ const result=await readMockableAccountSnapshot({...options,transport:async url=>({ok:true,status:200,json:async()=>url.includes('/balances')?balance:{transactions:[{...transactions.transactions[0],booking_date:'2026-10-31'}]}})});
+ assert.equal(result.movements.length,1);
+ await assert.rejects(readMockableAccountSnapshot({...options,transport:async url=>url.includes('/balances')?{ok:true,status:200,json:async()=>balance}:{ok:false,status:422,json:async()=>({error:'WRONG_TRANSACTIONS_PERIOD',detail:'private provider details'})}}),{code:'BANK_PERIOD'});
 });

@@ -5,6 +5,7 @@ import {checkProductionIdentity} from './bbva-production-identity.js';
 import {safeBankCallbackLanding} from './bbva-callback-landing.js';
 import {RETURN_PATH,rehearsalCookie,readRehearsalCookie,rehearsalLanding} from './bbva-rehearsal-return.js';
 import {liveAisEnabled} from './bbva-live-gate.js';
+import {readErrorMessage} from './bbva-read-errors.js';
 import {liveReturnCookie,readLiveReturnCookie} from './bbva-live-flow.js';
 import {
   generateRegistrationOptions,
@@ -38,7 +39,7 @@ const state = async (env,path,body={}) => {
  const id=env.PASSKEY_COORDINATOR.idFromName('owner');
  const stub=env.PASSKEY_COORDINATOR.get(id);
  const response=await stub.fetch('https://coordinator.internal'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
- if(!response.ok)throw Error('Coordinator unavailable');
+ if(!response.ok){const error=new Error('Coordinator unavailable');if(path.startsWith('/bbva/live/')){try{error.bankCode=(await response.json()).code;}catch{}}throw error;}
  return response.json();
 };
 const isAuthorized = async (req,env) => {
@@ -110,7 +111,7 @@ export default {
   if(request.method!=='POST')return json({error:'Method not allowed'},405,h);
   try {
    if(url.pathname.startsWith('/auth/bank/')){
-    if(!await isAuthorized(request,env))return json({error:'Session expired or invalid'},401,h);
+    if(!await isAuthorized(request,env))return json({error:readErrorMessage('OWNER_SESSION')},401,h);
     const token=request.headers.get('Authorization')?.replace(/^Bearer /,'');
     const body=await readBody(request);
     if(url.pathname==='/auth/bank/start'){
@@ -235,6 +236,7 @@ export default {
    return json({error:'Not found'},404,h);
   } catch(e) {
    // Never include input, credentials, tokens or banking information in errors.
+   if(url.pathname.startsWith('/auth/bank/'))return json({error:readErrorMessage(e?.bankCode)},400,h);
    return json({error:'Authentication request failed'},400,h);
   }
  }

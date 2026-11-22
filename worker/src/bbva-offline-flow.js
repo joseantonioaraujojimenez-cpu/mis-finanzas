@@ -6,6 +6,7 @@ import {consumeOwnerState} from './bbva-owner-state.js';
 import {commitVerifiedConsent,readVerifiedConsent} from './bbva-consent-vault.js';
 import {sessionStatusSpec} from './enable-banking-contract.js';
 import {readMockableAccountSnapshot} from './bbva-ais-offline-read.js';
+import {BankReadError,providerReadError} from './bbva-read-errors.js';
 const API='https://api.enablebanking.com';
 async function digestToken(token){
  if(typeof token!=='string'||token.length<32||token.length>256)throw Error('Owner authentication required');
@@ -17,7 +18,7 @@ export function createOfflineAisFlow({storage,transport,jwt,clock,bindBrowserRet
  async function verifySession(sessionId){
   const spec=sessionStatusSpec(sessionId);
   const response=await transport(API+spec.path,{method:'GET',redirect:'manual',headers:{Authorization:'Bearer '+jwt,Accept:'application/json'}});
-  if(!response||response.ok!==true||response.status!==200||typeof response.json!=='function')throw Error('Provider session unavailable');
+  if(!response||response.ok!==true||response.status!==200||typeof response.json!=='function')throw await providerReadError(response);
   const type=response.headers?.get?.('content-type');
   if(type!=null&&!/^application\/json(?:;|$)/i.test(type))throw Error('Unexpected session response');
   const body=await response.json();
@@ -88,6 +89,7 @@ export function createOfflineAisFlow({storage,transport,jwt,clock,bindBrowserRet
    const original=await getConsent();
    if(!original||!original.accountIds.includes(accountId))throw Error('Account not authorized');
    const provider=await verifySession(original.sessionId);
+   if(provider.status!=='AUTHORIZED'||Date.parse(provider.access?.valid_until)<=clock())throw new BankReadError('BANK_CONSENT');
    const guardedTransport=async(url,init)=>{
     const current=await getConsent();
     if(!current||current.sessionId!==original.sessionId||!current.accountIds.includes(accountId))throw Error('Consent no longer active');
