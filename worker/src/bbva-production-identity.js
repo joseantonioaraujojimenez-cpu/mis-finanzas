@@ -15,7 +15,7 @@ export async function checkProductionIdentity({appId,pem,transport=fetch}){
   if(response.status===401||response.status===403)return fail('provider_rejected_credentials');
   if(response.status!==200)return fail('provider_unavailable');
   const app=await response.json();
-  if(app?.kid!==appId||app.environment!=='PRODUCTION'||app.active!==true||!Array.isArray(app.services)||!app.services.includes('AIS')||app.services.includes('PIS')||!Array.isArray(app.redirect_urls)||!app.redirect_urls.includes(PRODUCTION_CALLBACK))return fail('application_configuration_mismatch');
+  if(app?.kid!==appId||app.environment!=='PRODUCTION'||app.active!==true||!Array.isArray(app.services)||app.services.length!==1||app.services[0]!=='AIS'||!Array.isArray(app.redirect_urls)||!app.redirect_urls.includes(PRODUCTION_CALLBACK))return fail('application_configuration_mismatch');
   return {configured:true,verified:true,reason:'production_ais_identity_verified',bankConnected:false};
  }catch{return fail('provider_connection_failed');}
 }

@@ -40,7 +40,7 @@ export function createOfflineAisFlow({storage,transport,jwt,clock,bindBrowserRet
    const saved=await tx(async t=>{
     const session=await t.get('session:'+token),epoch=(await t.get('session_epoch'))||0;
     const existing=await t.get('bbva:ais:consent');
-    if(!session||session.epoch!==epoch||session.expires<=clock()||(existing?.ownerEpoch===epoch&&existing.expiresAt>clock()))return false;
+    if(!session||session.epoch!==epoch||session.expires<=clock()||(existing?.ownerEpoch===epoch&&(existing.revoking===true||existing.expiresAt>clock())))return false;
     const key='bbva:ais:state:'+state;if(await t.get(key))return false;
     await t.put(key,{...record,ownerSessionDigest:digest,ownerEpoch:epoch});
     if(ticketKey){

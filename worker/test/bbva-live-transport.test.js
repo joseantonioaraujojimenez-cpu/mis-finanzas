@@ -27,6 +27,12 @@ test('only expected AIS authorization and exchange bodies are accepted',async()=
  await send(base+'/sessions',{method:'POST',body:JSON.stringify({code:'fixture'})});
  assert.equal(calls.length,2);
 });
+test('consent revocation uses only the session deletion endpoint',async()=>{
+ const {options,calls}=fixture(),send=createRestrictedAisTransport(options);
+ await send(base+'/sessions/'+accountId,{method:'DELETE'});
+ assert.equal(calls[0].init.method,'DELETE');
+ assert.equal(calls.length,1);
+});
 test('production transport has no public wiring or deployment activation',async()=>{
  const {readFileSync}=await import('node:fs');
  const worker=readFileSync(new URL('../src/index.js',import.meta.url),'utf8');

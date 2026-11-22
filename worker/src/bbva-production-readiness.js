@@ -9,7 +9,7 @@ export function checkProductionReadiness({appId,redirectUrls,services,environmen
  if(environment!=='PRODUCTION')failures.push('environment');
  if(active!==true)failures.push('inactive');
  if(restricted!==true)failures.push('not_restricted');
- if(!Array.isArray(services)||!services.includes('AIS')||services.includes('PIS'))failures.push('ais_only');
+ if(!Array.isArray(services)||services.length!==1||services[0]!=='AIS')failures.push('ais_only');
  if(!Array.isArray(redirectUrls)||!redirectUrls.includes(PRODUCTION_CALLBACK))failures.push('callback');
  return Object.freeze({ready:failures.length===0,failures,realBankConnected:false});
 }

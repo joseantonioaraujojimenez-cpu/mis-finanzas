@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {consumeOwnerState} from '../src/bbva-owner-state.js';
-import {commitVerifiedConsent,readVerifiedConsent,clearVerifiedConsent} from '../src/bbva-consent-vault.js';
+import {commitVerifiedConsent,readVerifiedConsent,clearVerifiedConsent,beginConsentRevocation,finishConsentRevocation} from '../src/bbva-consent-vault.js';
 const state='11111111-1111-4111-8111-111111111111',sessionId='22222222-2222-4222-8222-222222222222',account='33333333-3333-4333-8333-333333333333';
 const now=Date.parse('2026-11-22T10:00:00Z'),digest='a'.repeat(64),token='test-session';
 const provider={sessionId,status:'AUTHORIZED',aspsp:{name:'BBVA',country:'ES'},access:{valid_until:new Date(now+3600000).toISOString()},accounts:[account]};
@@ -35,4 +35,13 @@ test('consent is inaccessible after global revocation or local disconnect',async
  assert.equal(await f.read(),null);
  const g=fixture();await consumeOwnerState(g.tx,g.input);await g.commit();g.map.set('session_epoch',2);
  assert.equal(await g.read(),null);
+});
+test('pending provider revocation immediately prevents reading and can be retried',async()=>{
+ const f=fixture();await consumeOwnerState(f.tx,f.input);await f.commit();
+ assert.equal(await beginConsentRevocation(f.tx,{token,now}),sessionId);
+ assert.equal(await f.read(),null);
+ assert.equal(await beginConsentRevocation(f.tx,{token,now}),sessionId);
+ assert.equal(await finishConsentRevocation(f.tx,{sessionId:account}),false);
+ assert.equal(await finishConsentRevocation(f.tx,{sessionId}),true);
+ assert.equal(await f.read(),null);
 });

@@ -12,9 +12,11 @@ El flujo `worker/src/bbva-offline-flow.js` integra autorización, comprobación 
 ## Pendiente antes de conectar una cuenta real
 
 - El ensayo de retorno aislado usa un ticket de un solo uso en una cookie HttpOnly de dos minutos, limitado a la ruta de ensayo. Falta verificarlo en Safari y diseñar su equivalente para el flujo real; no se intercambian códigos bancarios. La sesión actual del navegador usa un token en memoria y no debe transferirse por URL ni almacenarse en almacenamiento web persistente.
-- Cablear las operaciones internas del coordinador y validar la persistencia con Durable Objects en el entorno aislado.
+- Las operaciones internas y la interfaz de lectura/desconexión están cableadas, pero desactivadas por defecto. Falta validar la persistencia con Durable Objects en el entorno aislado.
 - Verificar el estado y permisos AIS exclusivos de la aplicación del proveedor y el retorno HTTPS exacto.
 - Obtener autorización expresa del propietario para la conexión real de solo lectura.
 - Probar con el iPhone, registrar solo resultados no sensibles y verificar la desconexión/revocación con el proveedor.
 
 No activar pagos o transferencias. No desplegar a producción ni introducir datos bancarios reales en las pruebas automatizadas.
+
+La activación requiere confirmación expresa del propietario, verificación del modo restringido en Enable Banking y dos secretos independientes del código (`ENABLE_REAL_AIS`, `ENABLE_PRODUCTION_RESTRICTED`). El API de identidad verifica aplicación activa y servicios exclusivamente AIS. El Worker no habilita estas opciones mediante el navegador ni en su configuración de despliegue.

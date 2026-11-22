@@ -5,6 +5,10 @@ import { DurableObject } from 'cloudflare:workers';
 import {transitionDemoConsent} from './demo-consent.js';
 import {consumeOwnerState} from './bbva-owner-state.js';
 import {issueRehearsalTicket,consumeRehearsalTicket,cancelRehearsalTicket} from './bbva-rehearsal-return.js';
+import {liveAisEnabled,openLiveAisFlow} from './bbva-live-gate.js';
+import {readVerifiedConsent} from './bbva-consent-vault.js';
+import {readLiveReturnCookie} from './bbva-live-flow.js';
+import {callbackSafetyCheck} from './bbva-production-readiness.js';
 
 export class PasskeyCoordinator extends DurableObject {
  async fetch(request) {
@@ -14,6 +18,36 @@ export class PasskeyCoordinator extends DurableObject {
   try{input=await request.json()}catch{return Response.json({error:'Invalid JSON'},{status:400})}
   const store=this.ctx.storage;
   const now=Date.now();
+  if(['/bbva/live/start','/bbva/live/complete','/bbva/live/status','/bbva/live/read','/bbva/live/disconnect'].includes(path)){
+   if(!liveAisEnabled(this.env))return Response.json({error:'Live AIS disabled'},{status:403});
+   try{
+    if(path==='/bbva/live/complete'){
+     const ticket=readLiveReturnCookie(input.cookieHeader),parsed=callbackSafetyCheck(input.callbackUrl);
+     if(!ticket||parsed.status!=='requires_authenticated_one_time_exchange')return Response.json({error:'Return unavailable'},{status:400});
+     const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(ticket))),b=>b.toString(16).padStart(2,'0')).join('');
+     const binding=await store.get('bbva:ais:return:'+digest);
+     if(!binding||binding.state!==parsed.state||binding.expiresAt<=Date.now())return Response.json({error:'Return unavailable'},{status:400});
+     const flow=await openLiveAisFlow({env:this.env,storage:store,transport:fetch});
+     return Response.json(await flow.complete({cookieHeader:input.cookieHeader,callbackUrl:input.callbackUrl}));
+    }
+    const token=input.token;
+    if(typeof token!=='string'||token.length<32||token.length>256)return Response.json({error:'Owner authentication required'},{status:401});
+    const authenticated=await store.transaction(async tx=>{const session=await tx.get('session:'+token),epoch=(await tx.get('session_epoch'))||0;return Boolean(session&&session.epoch===epoch&&session.expires>Date.now());});
+    if(!authenticated)return Response.json({error:'Owner authentication required'},{status:401});
+    const consent=await store.transaction(tx=>readVerifiedConsent(tx,{token,now:Date.now()}));
+    if(path==='/bbva/live/status'){
+     const stored=await store.get('bbva:ais:consent');
+     return Response.json({consentStored:Boolean(consent),accountCount:consent?.accountIds.length||0,revocationPending:stored?.revoking===true});
+    }
+    const flow=await openLiveAisFlow({env:this.env,storage:store,transport:fetch});
+    if(path==='/bbva/live/start')return Response.json(await flow.start({token}));
+    if(path==='/bbva/live/disconnect')return Response.json(await flow.disconnect({token}));
+    if(!consent||!Number.isInteger(input.accountIndex)||input.accountIndex<0||input.accountIndex>=consent.accountIds.length)return Response.json({error:'Account not authorized'},{status:403});
+    const data=await flow.read({token,accountId:consent.accountIds[input.accountIndex],from:input.from,to:input.to,scope:input.scope});
+    const {accountId,movements,...summary}=data;
+    return Response.json({...summary,source:'bbva-ais',bankConnected:true,movements:movements.map(({accountId,id,...movement})=>movement)});
+   }catch{return Response.json({error:'Live AIS unavailable'},{status:400});}
+  }
   if(path==='/bbva/rehearsal/issue')return Response.json({ticket:await issueRehearsalTicket(store,input.token,now)});
   if(path==='/bbva/rehearsal/consume')return Response.json({verified:await consumeRehearsalTicket(store,input.ticket,now)});
   if(path==='/bbva/rehearsal/cancel')return Response.json({cancelled:await cancelRehearsalTicket(store,input.token)});

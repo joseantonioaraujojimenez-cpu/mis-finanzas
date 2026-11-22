@@ -22,7 +22,7 @@ export async function commitVerifiedConsent(tx,{state,token,digest,provider,now}
  if(!normalized)return false;
  // Never silently replace an active consent. Disconnect first.
  const current=await tx.get(KEY);
- if(current&&current.ownerEpoch===owner.epoch&&current.expiresAt>now)return false;
+ if(current&&current.ownerEpoch===owner.epoch&&(current.revoking===true||current.expiresAt>now))return false;
  await tx.put(KEY,{...normalized,ownerEpoch:owner.epoch});
  await tx.delete(receiptKey);
  return true;
@@ -30,8 +30,19 @@ export async function commitVerifiedConsent(tx,{state,token,digest,provider,now}
 // This return value is server-internal only. Do not serialize to a browser.
 export async function readVerifiedConsent(tx,{token,now}){
  const owner=await liveOwner(tx,token,now),stored=await tx.get(KEY);
- if(!owner||!stored||stored.ownerEpoch!==owner.epoch||!Number.isFinite(stored.expiresAt)||stored.expiresAt<=now)return null;
+ if(!owner||!stored||stored.revoking===true||stored.ownerEpoch!==owner.epoch||!Number.isFinite(stored.expiresAt)||stored.expiresAt<=now)return null;
  return {sessionId:stored.sessionId,expiresAt:stored.expiresAt,accountIds:[...stored.accountIds]};
+}
+export async function beginConsentRevocation(tx,{token,now}){
+ const owner=await liveOwner(tx,token,now),stored=await tx.get(KEY);
+ if(!owner||!stored||stored.ownerEpoch!==owner.epoch||!validId(stored.sessionId))return null;
+ await tx.put(KEY,{...stored,revoking:true});
+ return stored.sessionId;
+}
+export async function finishConsentRevocation(tx,{sessionId}){
+ const stored=await tx.get(KEY);
+ if(!stored||stored.revoking!==true||stored.sessionId!==sessionId)return false;
+ await tx.delete(KEY);return true;
 }
 // Local disconnect only; provider revocation requires a separate verified call.
 export async function clearVerifiedConsent(tx,{token,now}){

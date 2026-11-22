@@ -10,8 +10,12 @@ const sessionRoute=new RegExp('^/sessions/('+UUID+')$','i');
 function sameObject(a,b){if(a===b)return true;if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;const keys=Object.keys(a);return keys.length===Object.keys(b).length&&keys.every(k=>Object.hasOwn(b,k)&&sameObject(a[k],b[k]));}
 function checkedRequest(url,init,now){
  const target=new URL(url),method=init?.method;
- if(target.origin!==API||target.username||target.password||target.hash||!['GET','POST'].includes(method))throw Error('AIS request not allowed');
+ if(target.origin!==API||target.username||target.password||target.hash||!['GET','POST','DELETE'].includes(method))throw Error('AIS request not allowed');
  const path=target.pathname;
+ if(method==='DELETE'){
+  if(!sessionRoute.test(path)||target.search||init.body!==undefined)throw Error('AIS revocation not allowed');
+  return {url:API+path,method};
+ }
  if(method==='POST'){
   if(target.search||typeof init.body!=='string'||init.body.length>8192)throw Error('Invalid AIS request');
   const body=JSON.parse(init.body);
