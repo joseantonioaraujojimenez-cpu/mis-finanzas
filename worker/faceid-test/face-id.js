@@ -134,12 +134,24 @@ $('liveBankStart').onclick=()=>run(async()=>{
 });
 const localDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 function clearLiveData(){liveSnapshot=null;$('liveBankData').replaceChildren();}
+function parseBudgetEuro(value){const normalized=value.trim().replace(',','.');if(!/^\d{1,7}(?:\.\d{1,2})?$/.test(normalized))throw Error('Introduce un importe válido en euros.');const [whole,fraction='']=normalized.split('.'),cents=Number(whole)*100+Number(fraction.padEnd(2,'0'));if(cents>100000000)throw Error('Importe demasiado alto.');return cents;}
+function renderBudget(data,period,box){
+ if(!data.budget)return;
+ box.append(element('h2','Presupuesto y ahorro','section-divider'));
+ const grid=element('div',undefined,'grid'),budget=document.createElement('input'),goal=document.createElement('input');
+ for(const [label,input,value] of [['Límite de gastos (€)',budget,data.budget.budgetCents],['Objetivo de ahorro (€)',goal,data.budget.savingsGoalCents]]){input.type='number';input.min='0';input.max='1000000';input.step='0.01';input.inputMode='decimal';input.value=(value/100).toFixed(2);const field=element('label',label);field.append(input);grid.append(field);}box.append(grid);
+ const summary=element('div',undefined,'grid'),save=element('button','Guardar presupuesto y objetivo','secondary');
+ const draw=()=>{summary.replaceChildren();const b=data.budget,items=[['Disponible del presupuesto',b.remainingCents===null?'Sin límite':euro(b.remainingCents/100),b.overBudget?'negative':'positive'],['Ahorro que falta',b.savingsRemainingCents===null?'Sin objetivo':euro(b.savingsRemainingCents/100),''],['Previsión de gastos',b.forecastExpenseCents===null?'No disponible':euro(b.forecastExpenseCents/100),'']];for(const [label,value,kind] of items){const metric=element('div',undefined,'metric');metric.append(element('small',label),element('strong',value,kind));summary.append(metric);}};
+ save.onclick=()=>run(async()=>{const session=token;if(!session||liveSnapshot!==data)return;const result=await api('/auth/bank/budget',{accountIndex:Number($('liveBankAccount').value),scope:$('liveBankScope').value,month:period,action:'save',budgetCents:parseBudgetEuro(budget.value),savingsGoalCents:parseBudgetEuro(goal.value)},session);if(session!==token||liveSnapshot!==data||Date.now()>=expires||document.hidden)return;Object.assign(data.budget,result,{remainingCents:result.budgetCents?result.budgetCents-data.expenseCents:null,savingsRemainingCents:result.savingsGoalCents?Math.max(0,result.savingsGoalCents-data.balanceCents):null,overBudget:result.budgetCents>0&&data.expenseCents>result.budgetCents});draw();show('Presupuesto guardado para esta cuenta y mes.');});
+ box.append(save,summary,element('p','Estimación lineal según los días transcurridos del mes. No incluye gastos futuros conocidos ni supone que el ritmo se mantenga.','note'));draw();
+}
 function renderLiveSnapshot(data,period){
  const box=$('liveBankData');box.replaceChildren();box.append(element('p',`Cuenta ${Number($('liveBankAccount').value)+1} · ${$('liveBankScope').value} · ${period}`,'note'));
  for(const b of data.balances)box.append(element('p',`Saldo actual (${b.type}): ${euro(b.amountCents/100)}`,'live-note'));
  const metrics=element('div',undefined,'grid real-summary');
  for(const [label,value,kind] of [['Ingresos',euro(data.incomeCents/100),'positive'],['Gastos',euro(data.expenseCents/100),'negative'],['Saldo del periodo',euro(data.balanceCents/100),data.balanceCents>=0?'positive':'negative'],['Movimientos',data.movements.length,'']]){const item=element('div',undefined,'metric');item.append(element('small',label),element('strong',value,kind));metrics.append(item);}box.append(metrics);
  box.append(element('p',`${data.reviewCount} pendientes de clasificar · ${data.duplicates} duplicados evitados`,'note'));
+ renderBudget(data,period,box);
  box.append(element('h2','Gastos por categoría','section-divider'));
  for(const c of data.categories){const wrapper=element('div',undefined,'section-title'),row=element('div',undefined,'row');row.append(element('div',c.category),element('strong',euro(c.amountCents/100)));wrapper.append(row);const bar=element('div',undefined,'bar'),fill=element('span');fill.style.width=`${Math.min(100,Math.max(0,data.expenseCents?100*c.amountCents/data.expenseCents:0))}%`;bar.append(fill);wrapper.append(bar);box.append(wrapper);}
  if(!data.categories.length)box.append(element('p','No hay gastos en el periodo.','note'));

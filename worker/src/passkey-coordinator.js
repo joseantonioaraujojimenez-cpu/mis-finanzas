@@ -9,6 +9,7 @@ import {liveAisEnabled,openLiveAisFlow} from './bbva-live-gate.js';
 import {readVerifiedConsent} from './bbva-consent-vault.js';
 import {readLiveReturnCookie} from './bbva-live-flow.js';
 import {callbackSafetyCheck} from './bbva-production-readiness.js';
+import {budgetPreferences,calculateBudgetProgress} from './finance-budget.js';
 
 export class PasskeyCoordinator extends DurableObject {
  async fetch(request) {
@@ -18,6 +19,10 @@ export class PasskeyCoordinator extends DurableObject {
   try{input=await request.json()}catch{return Response.json({error:'Invalid JSON'},{status:400})}
   const store=this.ctx.storage;
   const now=Date.now();
+  if(path==='/finance/budget'){
+   if(!liveAisEnabled(this.env))return Response.json({error:'Finance unavailable'},{status:403});
+   try{return Response.json(await store.transaction(tx=>budgetPreferences(tx,{...input,now:Date.now()})));}catch{return Response.json({error:'Budget unavailable'},{status:400});}
+  }
   if(['/bbva/live/start','/bbva/live/complete','/bbva/live/status','/bbva/live/read','/bbva/live/disconnect'].includes(path)){
    if(!liveAisEnabled(this.env))return Response.json({error:'Live AIS disabled'},{status:403});
    try{
@@ -45,7 +50,13 @@ export class PasskeyCoordinator extends DurableObject {
     if(!consent||!Number.isInteger(input.accountIndex)||input.accountIndex<0||input.accountIndex>=consent.accountIds.length)return Response.json({error:'Account not authorized'},{status:403});
     const data=await flow.read({token,accountId:consent.accountIds[input.accountIndex],from:input.from,to:input.to,scope:input.scope});
     const {accountId,movements,...summary}=data;
-    return Response.json({...summary,source:'bbva-ais',bankConnected:true,movements:movements.map(({accountId,id,...movement})=>movement)});
+    let budget=null;
+    if(typeof input.from==='string'&&input.from.endsWith('-01')&&input.from.slice(0,7)===input.to?.slice(0,7)){
+     const month=input.from.slice(0,7),[year,monthNumber]=month.split('-').map(Number),daysInMonth=new Date(Date.UTC(year,monthNumber,0)).getUTCDate(),daysElapsed=Number(input.to.slice(8));
+     const preferences=await store.transaction(tx=>budgetPreferences(tx,{token,accountIndex:input.accountIndex,scope:input.scope,month,action:'get',now:Date.now()}));
+     budget={...preferences,...calculateBudgetProgress({...preferences,expenseCents:data.expenseCents,incomeCents:data.incomeCents,daysElapsed,daysInMonth})};
+    }
+    return Response.json({...summary,budget,source:'bbva-ais',bankConnected:true,movements:movements.map(({accountId,id,...movement})=>movement)});
    }catch{return Response.json({error:'Live AIS unavailable'},{status:400});}
   }
   if(path==='/bbva/rehearsal/issue')return Response.json({ticket:await issueRehearsalTicket(store,input.token,now)});
