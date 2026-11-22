@@ -30,3 +30,7 @@ test('invalid monetary values and oversized pages are rejected',()=>{
  assert.throws(()=>buildAisPreview({accountId,pages:[{movements:[{...a,amountCents:NaN}]}]}));
  assert.throws(()=>buildAisPreview({accountId,pages:Array.from({length:25},()=>({movements:[]}))}));
 });
+test('aggregate monetary values must remain exactly representable',()=>{
+ const movements=Array.from({length:100},(_,i)=>({...b,id:String(i),amountCents:100000000000000}));
+ assert.throws(()=>buildAisPreview({accountId,pages:[{movements}]}),/safe range/);
+});

@@ -34,7 +34,8 @@ export function buildAisPreview({pages,accountId,scope='Personal'}){
   }
  }
  const movements=[...items.values()].sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
- const incomeCents=movements.reduce((n,m)=>n+Math.max(0,m.amountCents),0);
- const expenseCents=movements.reduce((n,m)=>n+Math.max(0,-m.amountCents),0);
+ const safeAdd=(a,b)=>{const result=a+b;if(!Number.isSafeInteger(result))throw Error('Total exceeds safe range');return result;};
+ const incomeCents=movements.reduce((n,m)=>safeAdd(n,Math.max(0,m.amountCents)),0);
+ const expenseCents=movements.reduce((n,m)=>safeAdd(n,Math.max(0,-m.amountCents)),0);
  return {source:'ais-preview',bankConnected:false,requiresReview:true,accountId,movements,duplicates,reviewCount:movements.filter(m=>m.review).length,incomeCents,expenseCents,balanceCents:incomeCents-expenseCents};
 }
