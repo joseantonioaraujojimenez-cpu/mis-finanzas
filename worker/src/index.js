@@ -2,6 +2,7 @@ export { PasskeyCoordinator } from './passkey-coordinator.js';
 import {demoBankSnapshot} from './bank-demo.js';
 import {checkSandbox} from './enable-sandbox-check.js';
 import {checkProductionIdentity} from './bbva-production-identity.js';
+import {safeBankCallbackLanding} from './bbva-callback-landing.js';
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -66,6 +67,9 @@ export default {
    headers.set('X-Frame-Options','DENY');
    return new Response(asset.body,{status:asset.status,headers});
   }
+  // Isolated callback landing only: authorization codes are deliberately discarded.
+  // Never expose this route on the production Worker or exchange a code here.
+  if(isolated && url.pathname==='/bank/callback' && request.method==='GET')return safeBankCallbackLanding(url.href);
   if(request.method==='OPTIONS')return new Response(null,{status:origin===allowedOrigin?204:403,headers:{'Cache-Control':'no-store',...h}});
   if(request.method!=='GET' && request.method!=='POST')return json({error:'Method not allowed'},405,h);
   if(url.pathname==='/')return request.method==='GET'
